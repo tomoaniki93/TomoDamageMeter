@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.8
+- **Fix**: Throttled Refresh to prevent spamming and potential performance issues during combat
+
+## v1.0.7
+- **Fix**: Resolved `attempt to index global 'dmEventFrame'` error on logout/loading screen caused by cleanup code referencing locals declared later in the file
+- **Fix**: Resolved `attempt to call global 'ShowTip'` / `'HideTip'` errors on header button hover caused by tooltip helper functions declared after their first use
+
+- **New**: Tooltips on all header buttons (Settings, Target, Details, Lock, Report, Reset) and on Category, Type, and Session cycling areas
+- **New**: 9 tooltip locale strings added for all 6 supported languages (EN, FR, DE, ES, IT, PT-BR)
+- **Fix**: Event listeners (`dmEventFrame`, `instanceFrame`) are now properly unregistered on logout and loading screen via `PLAYER_LEAVING_WORLD`
+- **Fix**: Combat tickers (`timerTicker`, `refreshTicker`) are now cancelled on logout/leaving world to prevent orphaned timers
+- **Fix**: Silent `pcall` failures in SpellBridge now log error details when debug mode is enabled
+
 ## v1.0.6
 - **New**: Segment Browser — two-level drill-down using Blizzard's `C_DamageMeter` segment API
   - Level 1 lists combat segments (boss name + duration) from `GetAvailableCombatSessions()`

@@ -9,6 +9,8 @@ local ADDON_NAME, ns = ...
 
 local GetSpellInfo = C_Spell and C_Spell.GetSpellInfo or GetSpellInfo
 
+local DEBUG = false -- set to true to log C_DamageMeter pcall failures
+
 local function GetSpellIcon(spellID)
     if not spellID or spellID == 0 then return 134400 end
     if issecretvalue and issecretvalue(spellID) then return 134400 end
@@ -46,7 +48,11 @@ function ns.GetSpellBreakdown(sessionType, meterType, sourceGUID)
     -- pcall: sourceGUID may be a secret value (enemy targets); the C API
     -- can resolve it internally but Lua-side errors must be caught.
     local ok, spellData = pcall(C_DamageMeter.GetCombatSessionSourceFromType, sessionType, meterType, sourceGUID)
-    if not ok or not spellData or issecretvalue(spellData) then return nil, 0 end
+    if not ok then
+        if DEBUG then print(ns.L["ADDON_PREFIX"] .. "SpellBridge: GetCombatSessionSourceFromType failed: " .. tostring(spellData)) end
+        return nil, 0
+    end
+    if not spellData or issecretvalue(spellData) then return nil, 0 end
 
     local combatSpells = spellData.combatSpells
     if not combatSpells or issecretvalue(combatSpells) or #combatSpells == 0 then return nil, 0 end
@@ -99,7 +105,11 @@ function ns.GetSpellBreakdownBySegment(sessionID, meterType, sourceGUID)
 
     local ok, spellData = pcall(C_DamageMeter.GetCombatSessionSourceFromID,
         sessionID, meterType, sourceGUID)
-    if not ok or not spellData or issecretvalue(spellData) then return nil, 0 end
+    if not ok then
+        if DEBUG then print(ns.L["ADDON_PREFIX"] .. "SpellBridge: GetCombatSessionSourceFromID failed: " .. tostring(spellData)) end
+        return nil, 0
+    end
+    if not spellData or issecretvalue(spellData) then return nil, 0 end
 
     local combatSpells = spellData.combatSpells
     if not combatSpells or issecretvalue(combatSpells) or #combatSpells == 0 then return nil, 0 end

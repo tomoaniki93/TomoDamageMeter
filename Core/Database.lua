@@ -7,6 +7,7 @@ local ADDON_NAME, ns = ...
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGOUT")
+eventFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
 
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
@@ -69,12 +70,26 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         -- Enforce: switch any window showing a disabled category
         ns.EnforceEnabledTypes()
 
+    elseif event == "PLAYER_LEAVING_WORLD" then
+        -- Save positions on every zone transition (in case of crash)
+        if ns.db then
+            for _, win in ipairs(ns.windows) do
+                win.SavePosition()
+            end
+        end
     elseif event == "PLAYER_LOGOUT" then
         if ns.db then
             for _, win in ipairs(ns.windows) do
                 win.SavePosition()
             end
         end
+        -- Clean up event listeners only on actual logout
+        eventFrame:UnregisterAllEvents()
+        if ns._instanceFrame then ns._instanceFrame:UnregisterAllEvents() end
+        if ns._dmEventFrame then ns._dmEventFrame:UnregisterAllEvents() end
+        -- Cancel any running tickers
+        if ns._timerTicker then ns._timerTicker:Cancel(); ns._timerTicker = nil end
+        if ns._refreshTicker then ns._refreshTicker:Cancel(); ns._refreshTicker = nil end
     end
 end)
 
@@ -117,6 +132,7 @@ end
 local wasInInstance = false
 
 local instanceFrame = CreateFrame("Frame")
+ns._instanceFrame = instanceFrame
 instanceFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 instanceFrame:SetScript("OnEvent", function(self, event)
     local inInstance, instanceType = IsInInstance()
@@ -135,6 +151,7 @@ end)
 ----------------------------------------------------------------------
 
 local dmEventFrame = CreateFrame("Frame")
+ns._dmEventFrame = dmEventFrame
 dmEventFrame:RegisterEvent("DAMAGE_METER_COMBAT_SESSION_UPDATED")
 dmEventFrame:RegisterEvent("DAMAGE_METER_CURRENT_SESSION_UPDATED")
 dmEventFrame:RegisterEvent("DAMAGE_METER_RESET")
@@ -143,6 +160,8 @@ dmEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 local timerTicker = nil
 local refreshTicker = nil
+ns._timerTicker = nil
+ns._refreshTicker = nil
 
 -- Returns true if any visible window is showing an ACTIONS-type meter
 -- (Interrupts, Dispels, Deaths) — these don't fire DAMAGE_METER_* update events
@@ -153,6 +172,37 @@ local function NeedsPeriodicRefresh()
     end
     return false
 end
+
+----------------------------------------------------------------------
+-- Throttled Refresh (combat-only, 150ms interval)
+----------------------------------------------------------------------
+
+local lastRefreshTime = 0
+local REFRESH_INTERVAL = 0.15
+local deferredPending = false
+
+local function ThrottledRefresh()
+    local now = GetTime()
+    if now - lastRefreshTime < REFRESH_INTERVAL then
+        if not deferredPending then
+            deferredPending = true
+            C_Timer.After(REFRESH_INTERVAL, function()
+                deferredPending = false
+                lastRefreshTime = GetTime()
+                for _, win in ipairs(ns.windows) do win.Refresh() end
+                if ns.RefreshTargetBreakdown then ns.RefreshTargetBreakdown() end
+            end)
+        end
+        return
+    end
+    lastRefreshTime = now
+    for _, win in ipairs(ns.windows) do win.Refresh() end
+    if ns.RefreshTargetBreakdown then ns.RefreshTargetBreakdown() end
+end
+
+----------------------------------------------------------------------
+-- Combat Events
+----------------------------------------------------------------------
 
 dmEventFrame:SetScript("OnEvent", function(self, event)
     if event == "DAMAGE_METER_RESET" then
@@ -172,13 +222,13 @@ dmEventFrame:SetScript("OnEvent", function(self, event)
             timerTicker = C_Timer.NewTicker(1, function()
                 for _, win in ipairs(ns.windows) do win.UpdateTimer() end
             end)
+            ns._timerTicker = timerTicker
         end
-        -- Periodic refresh only needed for ACTIONS types (Interrupts, Dispels, Deaths)
-        -- which don't fire DAMAGE_METER_* update events.
         if not refreshTicker and NeedsPeriodicRefresh() then
             refreshTicker = C_Timer.NewTicker(1, function()
                 for _, win in ipairs(ns.windows) do win.Refresh() end
             end)
+            ns._refreshTicker = refreshTicker
         end
         for _, win in ipairs(ns.windows) do win.UpdateTimer() end
     elseif event == "PLAYER_REGEN_ENABLED" then
@@ -186,14 +236,15 @@ dmEventFrame:SetScript("OnEvent", function(self, event)
         for _, win in ipairs(ns.windows) do
             win.SetCombatAlpha(false)
         end
-        if timerTicker then timerTicker:Cancel(); timerTicker = nil end
-        if refreshTicker then refreshTicker:Cancel(); refreshTicker = nil end
+        if timerTicker then timerTicker:Cancel(); timerTicker = nil; ns._timerTicker = nil end
+        if refreshTicker then refreshTicker:Cancel(); refreshTicker = nil; ns._refreshTicker = nil end
         for _, win in ipairs(ns.windows) do win.UpdateTimer() end
-        -- Re-render: names are no longer secret
+        -- Re-render immédiat: les noms ne sont plus secret
         for _, win in ipairs(ns.windows) do win.Refresh() end
     else
-        for _, win in ipairs(ns.windows) do win.Refresh() end
-        if ns.RefreshTargetBreakdown then ns.RefreshTargetBreakdown() end
+        -- DAMAGE_METER_COMBAT_SESSION_UPDATED / CURRENT_SESSION_UPDATED
+        -- → throttle à 250ms au lieu de chaque frame
+        ThrottledRefresh()
     end
 end)
 

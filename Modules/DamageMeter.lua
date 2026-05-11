@@ -129,6 +129,13 @@ function ns.CreateMeterWindow(cfg)
 
     local headerLevel = window:GetFrameLevel() + 1
 
+    local function ShowTip(owner, text)
+        GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(text, 1, 1, 1)
+        GameTooltip:Show()
+    end
+    local function HideTip() GameTooltip:Hide() end
+
     local subHeader = CreateFrame("Button", nil, window)
     subHeader:SetFrameLevel(headerLevel)
     subHeader:SetPoint("TOPLEFT", window, "TOPLEFT", 0, -1)
@@ -171,6 +178,7 @@ function ns.CreateMeterWindow(cfg)
         subHeaderHL:Show()
         sessionText:SetTextColor(1, 1, 1)
         timerFS:SetTextColor(1, 1, 1)
+        ShowTip(subHeader, L["TIP_SESSION"])
     end)
     subHeader:SetScript("OnLeave", function()
         subHeaderHL:Hide()
@@ -180,6 +188,7 @@ function ns.CreateMeterWindow(cfg)
         else
             timerFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
         end
+        HideTip()
     end)
 
     -- Session cycling on click
@@ -232,8 +241,8 @@ function ns.CreateMeterWindow(cfg)
     catHL:SetTexture(ns.FLAT); catHL:SetVertexColor(unpack(ns.HEADER_HOVER_BG))
     catHL:SetAllPoints(); catHL:Hide()
 
-    catBtn:SetScript("OnEnter", function() catHL:Show(); catText:SetTextColor(1, 1, 1) end)
-    catBtn:SetScript("OnLeave", function() catHL:Hide(); catText:SetTextColor(unpack(ns.TEXT_SECONDARY)) end)
+    catBtn:SetScript("OnEnter", function() catHL:Show(); catText:SetTextColor(1, 1, 1); ShowTip(catBtn, L["TIP_CATEGORY"]) end)
+    catBtn:SetScript("OnLeave", function() catHL:Hide(); catText:SetTextColor(unpack(ns.TEXT_SECONDARY)); HideTip() end)
 
     -- Chevron separator (texture)
     local sep = header:CreateTexture(nil, "ARTWORK")
@@ -258,8 +267,8 @@ function ns.CreateMeterWindow(cfg)
     typeHL:SetVertexColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3], 0.15)
     typeHL:SetAllPoints(); typeHL:Hide()
 
-    typeBtn:SetScript("OnEnter", function() typeHL:Show() end)
-    typeBtn:SetScript("OnLeave", function() typeHL:Hide() end)
+    typeBtn:SetScript("OnEnter", function() typeHL:Show(); ShowTip(typeBtn, L["TIP_TYPE"]) end)
+    typeBtn:SetScript("OnLeave", function() typeHL:Hide(); HideTip() end)
 
     -- Header icon buttons factory (texture-based)
     local ICON_SIZE = 10
@@ -298,6 +307,8 @@ function ns.CreateMeterWindow(cfg)
     resetBtn:SetScript("OnClick", function()
         C_DamageMeter.ResetAllCombatSessions()
     end)
+    resetBtn:HookScript("OnEnter", function(self) ShowTip(self, L["TIP_RESET"]) end)
+    resetBtn:HookScript("OnLeave", HideTip)
 
     -- Report button
     local reportBtn = MakeHeaderBtn(resetBtn, ns.TEX_REPORT)
@@ -311,6 +322,8 @@ function ns.CreateMeterWindow(cfg)
         local lines = ns.db.reportLines or 5
         ns.SendReport(snap, channel, lines)
     end)
+    reportBtn:HookScript("OnEnter", function(self) ShowTip(self, L["TIP_REPORT"]) end)
+    reportBtn:HookScript("OnLeave", HideTip)
 
     -- Lock button
     local lockBtn = MakeHeaderBtn(reportBtn, ns.TEX_LOCK)
@@ -328,8 +341,8 @@ function ns.CreateMeterWindow(cfg)
         cfg.locked = not cfg.locked
         UpdateLockIcon()
     end)
-    lockBtn:SetScript("OnEnter", function() lockBtn._hl:Show(); lockBtn._icon:SetVertexColor(1, 1, 1) end)
-    lockBtn:SetScript("OnLeave", function() lockBtn._hl:Hide(); UpdateLockIcon() end)
+    lockBtn:SetScript("OnEnter", function() lockBtn._hl:Show(); lockBtn._icon:SetVertexColor(1, 1, 1); ShowTip(lockBtn, L["TIP_LOCK"]) end)
+    lockBtn:SetScript("OnLeave", function() lockBtn._hl:Hide(); UpdateLockIcon(); HideTip() end)
 
     -- Details button (spell breakdown)
     local detailsBtn = MakeHeaderBtn(lockBtn, ns.TEX_DETAILS)
@@ -338,6 +351,8 @@ function ns.CreateMeterWindow(cfg)
             ns.ShowSpellBreakdown(nil, nil, state.meterType, state.sessionType, nil)
         end
     end)
+    detailsBtn:HookScript("OnEnter", function(self) ShowTip(self, L["TIP_DETAILS"]) end)
+    detailsBtn:HookScript("OnLeave", HideTip)
 
     -- Target button (enemy damage breakdown)
     local targetBtn = MakeHeaderBtn(detailsBtn, ns.TEX_TARGET)
@@ -346,6 +361,8 @@ function ns.CreateMeterWindow(cfg)
             ns.ShowTargetBreakdown(state.sessionType)
         end
     end)
+    targetBtn:HookScript("OnEnter", function(self) ShowTip(self, L["TIP_TARGET"]) end)
+    targetBtn:HookScript("OnLeave", HideTip)
 
     -- Gear button (settings)
     local gearBtn = MakeHeaderBtn(targetBtn, ns.TEX_GEAR)
@@ -358,6 +375,8 @@ function ns.CreateMeterWindow(cfg)
             ns.ToggleSettings()
         end
     end)
+    gearBtn:HookScript("OnEnter", function(self) ShowTip(self, L["TIP_SETTINGS"]) end)
+    gearBtn:HookScript("OnLeave", HideTip)
 
     ----------------------------------------------------------------------
     -- Category / Type Menus (click handlers)
