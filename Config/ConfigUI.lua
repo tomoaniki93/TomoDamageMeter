@@ -78,10 +78,22 @@ local function CreateSettingsPanel()
     tabSep:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, 0)
     tabSep:SetPoint("TOPRIGHT", tabBar, "BOTTOMRIGHT", 0, 0)
 
-    -- Content area (below tabs)
-    local content = CreateFrame("Frame", nil, frame)
-    content:SetPoint("TOPLEFT", tabSep, "BOTTOMLEFT", 0, -6)
-    content:SetPoint("BOTTOMRIGHT", -12, 12)
+    -- Content area: scrollable container below tabs
+    local scrollFrame = CreateFrame("ScrollFrame", nil, frame)
+    scrollFrame:SetPoint("TOPLEFT", tabSep, "BOTTOMLEFT", 0, -6)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -12, 12)
+    scrollFrame:EnableMouseWheel(true)
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local cur = self:GetVerticalScroll()
+        local max = self:GetVerticalScrollRange()
+        local step = 30
+        local newVal = math.max(0, math.min(cur - delta * step, max))
+        self:SetVerticalScroll(newVal)
+    end)
+    scrollFrame:SetScript("OnSizeChanged", function(self, w)
+        local child = self:GetScrollChild()
+        if child then child:SetWidth(w) end
+    end)
 
     -- Tab system
     local tabs = {}
@@ -105,7 +117,10 @@ local function CreateSettingsPanel()
             tabs[index].text:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
         end
         if tabContents[index] then
+            scrollFrame:SetScrollChild(tabContents[index])
+            tabContents[index]:SetWidth(scrollFrame:GetWidth())
             tabContents[index]:Show()
+            scrollFrame:SetVerticalScroll(0)
         end
     end
 
@@ -141,8 +156,8 @@ local function CreateSettingsPanel()
     end
 
     local function CreateContentFrame()
-        local c = CreateFrame("Frame", nil, content)
-        c:SetAllPoints(content)
+        local c = CreateFrame("Frame", nil, scrollFrame)
+        c:SetWidth(scrollFrame:GetWidth())
         c:Hide()
         return c
     end
@@ -174,7 +189,7 @@ local function CreateSettingsPanel()
         AddSection(L["SETTINGS_APPEARANCE"])
 
         local fontSlider = ns.Widgets.CreateSlider(parent, L["SETTINGS_FONT_SIZE"],
-            8, 16, 1,
+            8, 22, 1,
             function() return ns.db.fontSize end,
             function(val)
                 ns.db.fontSize = val
@@ -185,6 +200,30 @@ local function CreateSettingsPanel()
                 end
             end)
         AddWidget(fontSlider, 50)
+
+        -- Font face dropdown
+        local fontOptions = {}
+        for _, entry in ipairs(ns.FONT_LIST) do
+            fontOptions[#fontOptions + 1] = {
+                value = entry.path,
+                label = L[entry.key] or entry.key,
+                fontPath = entry.path,
+            }
+        end
+        local fontDD = ns.Widgets.CreateDropdown(parent, L["SETTINGS_FONT_FACE"],
+            fontOptions,
+            function() return ns.db.fontPath end,
+            function(val)
+                ns.db.fontPath = val
+                ns.ClearCharWidthCache()
+                for _, win in ipairs(ns.windows) do
+                    if win.RefreshFonts then win.RefreshFonts() end
+                    win.Refresh()
+                end
+                if ns.RefreshBreakdownFonts then ns.RefreshBreakdownFonts() end
+                if ns.RefreshTargetBreakdownFonts then ns.RefreshTargetBreakdownFonts() end
+            end)
+        AddWidget(fontDD, 30)
 
         local barSlider = ns.Widgets.CreateSlider(parent, L["SETTINGS_BAR_HEIGHT"],
             14, 32, 1,
@@ -314,6 +353,9 @@ local function CreateSettingsPanel()
             function() return ns.db.reportLines end,
             function(val) ns.db.reportLines = val end)
         AddWidget(linesSlider, 50)
+
+        -- Set scroll child height to total content
+        parent:SetHeight(yOff + 10)
     end
 
     ----------------------------------------------------------------------
@@ -405,6 +447,9 @@ local function CreateSettingsPanel()
                 win.cfg.locked = val
             end)
         AddWidget(lockCB, 24)
+
+        -- Set scroll child height to total content
+        parent:SetHeight(yOff + 10)
     end
 
     ----------------------------------------------------------------------

@@ -106,6 +106,10 @@ function ns.Widgets.CreateDropdown(parent, label, options, getter, setter)
         for _, opt in ipairs(options) do
             if opt.value == current then
                 btnText:SetText(opt.label)
+                -- Apply font preview if option has a fontPath
+                if opt.fontPath then
+                    btnText:SetFont(opt.fontPath, 10, "OUTLINE")
+                end
                 return
             end
         end

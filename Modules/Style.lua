@@ -73,6 +73,18 @@ ns.FONT = "Fonts\\FRIZQT__.TTF"
 ns.HEADER_FONT = ns.FONT
 
 ----------------------------------------------------------------------
+-- Font Registry (built-in game fonts)
+----------------------------------------------------------------------
+
+ns.FONT_LIST = {
+    { path = "Fonts\\FRIZQT__.TTF",     key = "FONT_FRIZ" },
+    { path = "Fonts\\ARIALN.TTF",       key = "FONT_ARIAL" },
+    { path = "Fonts\\2002.TTF",         key = "FONT_2002" },
+    { path = "Fonts\\MORPHEUS.TTF",     key = "FONT_MORPHEUS" },
+    { path = "Fonts\\SKURRI.TTF",       key = "FONT_SKURRI" },
+}
+
+----------------------------------------------------------------------
 -- Font accessor (DB override)
 ----------------------------------------------------------------------
 

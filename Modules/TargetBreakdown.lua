@@ -19,7 +19,7 @@ local BORDER_SIZE    = 1
 local RANK_WIDTH     = 22
 
 -- Column widths
-local COL_PCT_W      = 46
+local COL_PCT_W      = 52
 local COL_PERSEC_W   = 50
 local COL_TOTAL_W    = 60
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.9
+- **Fix**: All Locales
+- **Fix**: Fixed Interrupt/Dispel/Death counter in combat (SetFormattedText C-side instead of Lua-side)
+- **New**: Slider font size expanded — Range increased from 8–16 to 8–22, you will be able to go much higher.
+- **New**: Font selector in the GUI (5 native WoW fonts)
+- **New**: Fixed truncation percentages in SpellBreakdown and TargetBreakdown (COL_PCT_W 46→52)
+- **New**: GUI scrollable content
+
 ## v1.0.8
 - **Fix**: Throttled Refresh to prevent spamming and potential performance issues during combat
 
