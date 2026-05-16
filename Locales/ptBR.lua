@@ -141,3 +141,5 @@ L["FONT_ARIAL"] = "Arial Narrow"
 L["FONT_2002"] = "2002"
 L["FONT_MORPHEUS"] = "Morpheus"
 L["FONT_SKURRI"] = "Skurri"
+
+L["FILTER_PLAYERS"] = "Filtrar..."

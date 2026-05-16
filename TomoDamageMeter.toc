@@ -1,4 +1,4 @@
-## Interface: 120005, 120001, 120000
+## Interface: 120007, 120005
 ## 
 ## Title: |cffCC44FFTomo|r|cffFFFFFFDamageMeter|r
 ## Notes: Standalone Damage Meter addon.
@@ -7,7 +7,7 @@
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 1.0.9
+## Version: 1.1.0
 ## IconTexture: Interface\Icons\Inv12_apextalent_mage_firedup
 
 Locales\enUS.lua

@@ -312,6 +312,7 @@ local function EnsureWindow()
             nameFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
             nameFS:SetJustifyH("LEFT")
             nameFS:SetWordWrap(false)
+            nameFS:SetNonSpaceWrap(false)
             nameFS:SetShadowOffset(1, -1)
             nameFS:SetShadowColor(0, 0, 0, 0.4)
             button._nameFS = nameFS

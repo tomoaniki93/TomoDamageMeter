@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.1.0
+- **Fix**: SpellBreakdown player strip no longer overflows in raids — names are now inside a horizontally scrollable ScrollFrame
+- **New**: Player dropdown menu with search filter — click the player count button to open a full list with class-colored dots and DPS/HPS preview
+- **Fix**: Added `SetNonSpaceWrap(false)` to all name FontStrings in SpellBreakdown and TargetBreakdown for proper text truncation
+- **New**: Dropdown auto-closes when selecting a player, closing the window, or pressing Escape
+- **New**: `FILTER_PLAYERS` locale key added to all 6 languages
+
 ## v1.0.9
 - **Fix**: All Locales
 - **Fix**: Fixed Interrupt/Dispel/Death counter in combat (SetFormattedText C-side instead of Lua-side)
