@@ -1,6 +1,6 @@
 # TomoDamageMeter
 
-# ![TomoDamageMeter](https://img.shields.io/badge/TomoDamageMeter-v1.1.0-0cd29f?style=for-the-badge) ![WoW](https://img.shields.io/badge/WoW-Midnight-blue?style=for-the-badge) ![Interface](https://img.shields.io/badge/Interface-120001-orange?style=for-the-badge)
+# ![TomoDamageMeter](https://img.shields.io/badge/TomoDamageMeter-v1.2.0-0cd29f?style=for-the-badge) ![WoW](https://img.shields.io/badge/WoW-Midnight-blue?style=for-the-badge) ![Interface](https://img.shields.io/badge/Interface-120001-orange?style=for-the-badge)
 
 A standalone, lightweight damage meter addon for **World of Warcraft: Midnight** (Retail). It replaces Blizzard's default Damage Meter UI with a dark, customizable, multi-window interface while leveraging the built-in `C_DamageMeter` data API.
 
@@ -12,15 +12,16 @@ A standalone, lightweight damage meter addon for **World of Warcraft: Midnight**
   - **Actions** — Interrupts, Dispels, Deaths
 - **Spell Breakdown window** — Dedicated standalone window showing per-spell details for any player. Displays spell icon, name, total, DPS/HPS per spell, and percentage. Includes a player selector strip to switch between group members without closing the window.
 - **Category toggles** — Enable or disable entire meter categories (Damage, Healing, Actions) from the settings panel. Disabled categories are hidden from navigation and dropdowns.
-- **Up to 3 independent windows**, each with its own meter type and session
+- **Up to 5 independent windows**, each with its own meter type and session
 - **2 session modes** — Current encounter and Overall
-- **Live combat timer** updated every second
+- **Live combat timer (DPS/HPS)** — shown on DPS and healing meters, updated every second
+- **Pinned self bar** — optionally keep your own row pinned at the bottom, always visible even when scrolled off
 - **Bar animations** on data changes
 - **Class-colored bars** with gradient fill
 - **Report to chat** — Say, Party, Raid, Guild, Whisper
 - **Lockable & resizable** windows with saved positions
 - **Out-of-combat opacity** fade
-- **Localized** in 6 languages: English, French, German, Spanish, Italian, Portuguese (Brazil)
+- **Localized** in 9 languages: English, French, German, Spanish, Italian, Portuguese (Brazil), Simplified Chinese, Traditional Chinese, Russian
 - **Zero external dependencies** — pure namespace-based, no Ace3 or third-party libraries required
 
 ## Requirements
@@ -94,6 +95,8 @@ The window is movable, resizable (360×300 to 600×800), closable with ESC, and 
 | Strip Realm Names | Enabled |
 | Use Class Color as accent | Disabled (green accent) |
 | Auto-reset on instance entry | Enabled |
+| Combat Timer (DPS/HPS) | Enabled |
+| Pin My Own Bar | Disabled |
 
 ### Categories
 
@@ -114,7 +117,7 @@ Toggle entire meter categories on or off. Disabled categories are hidden from na
 
 ### Windows
 
-Add or remove windows (1 to 3). Each new window spawns with a slight offset to avoid overlap. Each window has its own meter type, session type, and lock setting.
+Add or remove windows (1 to 5). Each new window spawns with a slight offset to avoid overlap. Each window has its own meter type, session type, and lock setting.
 
 ## Data Columns
 
@@ -133,6 +136,14 @@ Each bar in the main meter can display up to 3 value columns:
 - **Spell icons and names** are resolved via `C_Spell.GetSpellInfo()`.
 
 ## Changelog
+
+### v1.2.0
+- **Fix**: Combat timer now displays — was reading the wrong session field (`duration` instead of `durationSeconds`)
+- **New**: Combat timer shown on DPS/HPS meters, with a settings toggle
+- **New**: Pinned self bar to keep your own row visible (settings toggle)
+- **New**: Max windows raised from 3 to 5
+- **New**: Simplified Chinese, Traditional Chinese and Russian locales
+- **Fix**: `UpdateButton` no longer leaks a global shared across windows
 
 ### v1.0.4
 - **New**: Spell Breakdown window — standalone, resizable window with per-spell details and player selector strip

@@ -30,6 +30,8 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         ns.db.reportLines   = ns.db.reportLines   or 5
         ns.db.breakdownAlpha = ns.db.breakdownAlpha or 0.85
         if ns.db.autoResetOnInstance == nil then ns.db.autoResetOnInstance = true end
+        if ns.db.showCombatTimer == nil then ns.db.showCombatTimer = true end
+        if ns.db.showSelfBar == nil then ns.db.showSelfBar = false end
 
         -- Category visibility (empty = all enabled)
         if not ns.db.disabledCategories then ns.db.disabledCategories = {} end

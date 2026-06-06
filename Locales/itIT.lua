@@ -100,6 +100,8 @@ L["CMD_HELP_HELP"]      = "  /tdm help — questo messaggio"
 
 -- Auto-reset
 L["SETTINGS_AUTO_RESET_INSTANCE"] = "Auto-reset all'ingresso in istanza"
+L["SETTINGS_COMBAT_TIMER"] = "Timer di combattimento (DPS/HPS)"
+L["SETTINGS_SELF_BAR"] = "Fissa la mia barra"
 L["SETTINGS_CATEGORIES"] = "Categorie"
 L["SETTINGS_CATEGORIES_MIN"] = "Almeno una categoria deve rimanere attivata."
 L["AUTO_RESET_MSG"]                = "Dati resettati automaticamente (ingresso in istanza)."

@@ -100,6 +100,8 @@ L["CMD_HELP_HELP"] = "  /tdm help — this message"
 
 -- Auto-reset
 L["SETTINGS_AUTO_RESET_INSTANCE"] = "Auto-reset on instance entry"
+L["SETTINGS_COMBAT_TIMER"] = "Combat Timer (DPS/HPS)"
+L["SETTINGS_SELF_BAR"] = "Pin My Own Bar"
 L["SETTINGS_CATEGORIES"] = "Categories"
 L["SETTINGS_CATEGORIES_MIN"] = "At least one category must remain enabled."
 L["AUTO_RESET_MSG"] = "Data auto-reset (instance entry)."

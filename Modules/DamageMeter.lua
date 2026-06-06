@@ -18,6 +18,12 @@ function ns.CreateMeterWindow(cfg)
         elements = {},
     }
 
+    -- Forward declaration: defined further down but referenced by the
+    -- ScrollBox element initializer (and the self bar) above its definition.
+    -- Declaring it local keeps each window bound to its own closure instead
+    -- of clobbering a shared global across windows.
+    local UpdateButton
+
     ----------------------------------------------------------------------
     -- Main Frame
     ----------------------------------------------------------------------
@@ -473,9 +479,16 @@ function ns.CreateMeterWindow(cfg)
 
     local scrollBox = CreateFrame("Frame", nil, window, "WowScrollBoxList")
 
+    -- Bottom-right boundary helper. Sits at the action strip's left edge.
+    -- Its vertical offset is raised by the self-bar height when that bar is
+    -- shown, so the scroll list (anchored to it) shrinks to make room.
+    local scrollBR = CreateFrame("Frame", nil, window)
+    scrollBR:SetSize(1, 1)
+    scrollBR:SetPoint("BOTTOMRIGHT", actionStrip, "BOTTOMLEFT", 0, 0)
+
     local scrollBar = CreateFrame("EventFrame", nil, window, "MinimalScrollBar")
     scrollBar:SetPoint("TOPRIGHT", actionStrip, "TOPLEFT", -1, 0)
-    scrollBar:SetPoint("BOTTOMRIGHT", actionStrip, "BOTTOMLEFT", -1, -1)
+    scrollBar:SetPoint("BOTTOMRIGHT", scrollBR, "BOTTOMRIGHT", -1, -1)
     scrollBar:SetWidth(ns.SCROLLBAR_WIDTH)
 
     -- Style the scrollbar
@@ -519,80 +532,90 @@ function ns.CreateMeterWindow(cfg)
     local dataProvider = CreateDataProvider()
 
     ----------------------------------------------------------------------
+    -- Bar Visuals Builder
+    -- Shared by ScrollBox row buttons AND the pinned self bar so both
+    -- have identical visuals, hover behaviour and click handling.
+    ----------------------------------------------------------------------
+
+    local function BuildBarVisuals(button)
+        button:SetHeight(ns.GetBarHeight())
+        button:EnableMouse(true)
+
+        -- Spec icon
+        local iconFrame = button:CreateTexture(nil, "ARTWORK")
+        iconFrame:SetPoint("TOPLEFT", 0, 0)
+        iconFrame:SetPoint("BOTTOMLEFT", 0, ns.BAR_SPACING)
+        iconFrame:SetWidth(ns.GetBarHeight() - ns.BAR_SPACING)
+        iconFrame:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        button.icon = iconFrame
+
+        -- Status bar
+        local bar = CreateFrame("StatusBar", nil, button)
+        bar:SetStatusBarTexture(ns.FLAT)
+        button.bar = bar
+
+        -- Name
+        local nameFS = bar:CreateFontString(nil, "OVERLAY")
+        nameFS:SetFont(ns.GetFont(), ns.BAR_FONT_SIZE, "OUTLINE")
+        nameFS:SetJustifyH("LEFT")
+        nameFS:SetWordWrap(false)
+        nameFS:SetShadowOffset(1, -1)
+        nameFS:SetShadowColor(0, 0, 0, 0.4)
+        button.nameFS = nameFS
+
+        -- Value columns
+        local function MakeValueFS(parent)
+            local fs = parent:CreateFontString(nil, "OVERLAY")
+            fs:SetFont(ns.GetFont(), ns.BAR_FONT_SIZE, "OUTLINE")
+            fs:SetJustifyH("RIGHT")
+            fs:SetShadowOffset(1, -1)
+            fs:SetShadowColor(0, 0, 0, 0.4)
+            return fs
+        end
+        button.rateFS = MakeValueFS(bar)
+        button.totalFS = MakeValueFS(bar)
+        button.pctFS = MakeValueFS(bar)
+
+        -- Hover highlight
+        local hl = button:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetTexture(ns.FLAT)
+        hl:SetVertexColor(1, 1, 1, 0.08)
+        hl:SetAllPoints()
+
+        button.fill = bar:GetStatusBarTexture()
+        button:HookScript("OnEnter", function(self)
+            if self.fill then self.fill:SetAlpha(1) end
+            if self.icon then self.icon:SetAlpha(1) end
+        end)
+        button:HookScript("OnLeave", function(self)
+            if self.fill then self.fill:SetAlpha(ns.BAR_ALPHA) end
+            if self.icon then self.icon:SetAlpha(ns.ICON_ALPHA) end
+        end)
+
+        MakeDraggable(button)
+
+        -- Click: open spell breakdown for this player
+        button:SetScript("OnClick", function(self, btn)
+            if btn == "LeftButton" and self._elementData then
+                local ed = self._elementData
+                if ed.sourceGUID and not issecretvalue(ed.sourceGUID) then
+                    local playerName = (not issecretvalue(ed.name) and ns.db.stripRealm)
+                        and ns.StripRealm(ed.name) or (not issecretvalue(ed.name) and ed.name or "?")
+                    if ns.ShowSpellBreakdown then
+                        ns.ShowSpellBreakdown(playerName, ed.sourceGUID, state.meterType, state.sessionType, ed.classFilename)
+                    end
+                end
+            end
+        end)
+    end
+
+    ----------------------------------------------------------------------
     -- Element Initializer (bar entries)
     ----------------------------------------------------------------------
 
     view:SetElementInitializer("Button", function(button, elementData)
         if not button.bar then
-            button:SetHeight(ns.GetBarHeight())
-            button:EnableMouse(true)
-
-            -- Spec icon
-            local iconFrame = button:CreateTexture(nil, "ARTWORK")
-            iconFrame:SetPoint("TOPLEFT", 0, 0)
-            iconFrame:SetPoint("BOTTOMLEFT", 0, ns.BAR_SPACING)
-            iconFrame:SetWidth(ns.GetBarHeight() - ns.BAR_SPACING)
-            iconFrame:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            button.icon = iconFrame
-
-            -- Status bar
-            local bar = CreateFrame("StatusBar", nil, button)
-            bar:SetStatusBarTexture(ns.FLAT)
-            button.bar = bar
-
-            -- Name
-            local nameFS = bar:CreateFontString(nil, "OVERLAY")
-            nameFS:SetFont(ns.GetFont(), ns.BAR_FONT_SIZE, "OUTLINE")
-            nameFS:SetJustifyH("LEFT")
-            nameFS:SetWordWrap(false)
-            nameFS:SetShadowOffset(1, -1)
-            nameFS:SetShadowColor(0, 0, 0, 0.4)
-            button.nameFS = nameFS
-
-            -- Value columns
-            local function MakeValueFS(parent)
-                local fs = parent:CreateFontString(nil, "OVERLAY")
-                fs:SetFont(ns.GetFont(), ns.BAR_FONT_SIZE, "OUTLINE")
-                fs:SetJustifyH("RIGHT")
-                fs:SetShadowOffset(1, -1)
-                fs:SetShadowColor(0, 0, 0, 0.4)
-                return fs
-            end
-            button.rateFS = MakeValueFS(bar)
-            button.totalFS = MakeValueFS(bar)
-            button.pctFS = MakeValueFS(bar)
-
-            -- Hover highlight
-            local hl = button:CreateTexture(nil, "HIGHLIGHT")
-            hl:SetTexture(ns.FLAT)
-            hl:SetVertexColor(1, 1, 1, 0.08)
-            hl:SetAllPoints()
-
-            button.fill = bar:GetStatusBarTexture()
-            button:HookScript("OnEnter", function(self)
-                if self.fill then self.fill:SetAlpha(1) end
-                if self.icon then self.icon:SetAlpha(1) end
-            end)
-            button:HookScript("OnLeave", function(self)
-                if self.fill then self.fill:SetAlpha(ns.BAR_ALPHA) end
-                if self.icon then self.icon:SetAlpha(ns.ICON_ALPHA) end
-            end)
-
-            MakeDraggable(button)
-
-            -- Click: open spell breakdown for this player
-            button:SetScript("OnClick", function(self, btn)
-                if btn == "LeftButton" and self._elementData then
-                    local ed = self._elementData
-                    if ed.sourceGUID and not issecretvalue(ed.sourceGUID) then
-                        local playerName = (not issecretvalue(ed.name) and ns.db.stripRealm)
-                            and ns.StripRealm(ed.name) or (not issecretvalue(ed.name) and ed.name or "?")
-                        if ns.ShowSpellBreakdown then
-                            ns.ShowSpellBreakdown(playerName, ed.sourceGUID, state.meterType, state.sessionType, ed.classFilename)
-                        end
-                    end
-                end
-            end)
+            BuildBarVisuals(button)
         end
 
         -- Store elementData reference for click handler
@@ -607,16 +630,55 @@ function ns.CreateMeterWindow(cfg)
     -- Managed scrollbar anchors
     local scrollBoxAnchorsWithBar = {
         CreateAnchor("TOPLEFT", headerSep2, "BOTTOMLEFT", 0, 0),
-        CreateAnchor("BOTTOMRIGHT", actionStrip, "BOTTOMLEFT", -(ns.SCROLLBAR_WIDTH + 2), 0),
+        CreateAnchor("BOTTOMRIGHT", scrollBR, "BOTTOMRIGHT", -(ns.SCROLLBAR_WIDTH + 2), 0),
     }
     local scrollBoxAnchorsWithoutBar = {
         CreateAnchor("TOPLEFT", headerSep2, "BOTTOMLEFT", 0, 0),
-        CreateAnchor("BOTTOMRIGHT", actionStrip, "BOTTOMLEFT", 0, 0),
+        CreateAnchor("BOTTOMRIGHT", scrollBR, "BOTTOMRIGHT", 0, 0),
     }
     ScrollUtil.AddManagedScrollBarVisibilityBehavior(scrollBox, scrollBar,
         scrollBoxAnchorsWithBar, scrollBoxAnchorsWithoutBar)
 
     scrollBox:SetDataProvider(dataProvider)
+
+    ----------------------------------------------------------------------
+    -- Pinned Self Bar (always-visible local-player row)
+    ----------------------------------------------------------------------
+
+    local selfBar = CreateFrame("Button", nil, window)
+    selfBar:SetFrameLevel(headerLevel + 2)
+    selfBar:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", ns.BORDER_WIDTH, ns.BORDER_WIDTH)
+    selfBar:SetPoint("BOTTOMRIGHT", actionStrip, "BOTTOMLEFT", 0, ns.BORDER_WIDTH)
+    selfBar:SetHeight(ns.GetBarHeight())
+    BuildBarVisuals(selfBar)
+    selfBar:Hide()
+
+    -- Accent separator drawn just above the self bar
+    local selfSep = window:CreateTexture(nil, "OVERLAY")
+    selfSep:SetTexture(ns.FLAT)
+    selfSep:SetVertexColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3], 0.5)
+    selfSep:SetHeight(1)
+    selfSep:SetPoint("BOTTOMLEFT", selfBar, "TOPLEFT", 0, 0)
+    selfSep:SetPoint("BOTTOMRIGHT", selfBar, "TOPRIGHT", 0, 0)
+    selfSep:Hide()
+
+    -- Reserve (or release) vertical space for the self bar by moving the
+    -- scroll list's bottom boundary frame.
+    local function SetSelfBarShown(shown)
+        scrollBR:ClearAllPoints()
+        if shown then
+            local bh = ns.GetBarHeight()
+            selfBar:SetHeight(bh)
+            selfBar.icon:SetWidth(bh - ns.BAR_SPACING)
+            scrollBR:SetPoint("BOTTOMRIGHT", actionStrip, "BOTTOMLEFT", 0, bh + 1)
+            selfBar:Show()
+            selfSep:Show()
+        else
+            scrollBR:SetPoint("BOTTOMRIGHT", actionStrip, "BOTTOMLEFT", 0, 0)
+            selfBar:Hide()
+            selfSep:Hide()
+        end
+    end
 
     ----------------------------------------------------------------------
     -- UpdateButton
@@ -713,6 +775,9 @@ function ns.CreateMeterWindow(cfg)
         local session = C_DamageMeter.GetCombatSessionFromType(state.sessionType, state.meterType)
         dataProvider:Flush()
 
+        -- Default: no self bar this pass; re-enabled below if data + setting allow.
+        SetSelfBarShown(false)
+
         if not session or issecretvalue(session) then return end
         local sources = session.combatSources
         if not sources or #sources == 0 then return end
@@ -750,6 +815,35 @@ function ns.CreateMeterWindow(cfg)
         end
 
         dataProvider:InsertTable(elements)
+
+        -- Pinned self bar: locate the local player anywhere in the full list
+        -- (not just the visible top N) and mirror their row at the bottom.
+        if ns.db and ns.db.showSelfBar then
+            local selfSource
+            for _, source in ipairs(sources) do
+                local isSelf = source.isLocalPlayer
+                if isSelf ~= nil and not issecretvalue(isSelf) and isSelf then
+                    selfSource = source
+                    break
+                end
+            end
+            if selfSource then
+                selfBar._elementData = {
+                    name = selfSource.name,
+                    classFilename = selfSource.classFilename,
+                    specIconID = selfSource.specIconID,
+                    totalAmount = selfSource.totalAmount,
+                    amountPerSecond = selfSource.amountPerSecond,
+                    maxAmount = maxAmount,
+                    sessionTotal = sessionTotal,
+                    sourceGUID = selfSource.sourceGUID,
+                    isLocalPlayer = true,
+                    isActionType = isAction,
+                }
+                SetSelfBarShown(true)
+                UpdateButton(selfBar, selfBar._elementData)
+            end
+        end
     end
 
     -- Throttled refresh
@@ -794,6 +888,9 @@ function ns.CreateMeterWindow(cfg)
         typeBtn:SetPoint("BOTTOM", header, "BOTTOM")
         local typeWidth = typeText:GetStringWidth() + ns.TEXT_PAD * 2
         typeBtn:SetWidth(typeWidth)
+
+        -- Keep the combat timer in sync with the current meter type.
+        state.UpdateTimer()
     end
 
     ----------------------------------------------------------------------
@@ -801,20 +898,42 @@ function ns.CreateMeterWindow(cfg)
     ----------------------------------------------------------------------
 
     function state.UpdateTimer()
+        -- Combat timer is shown only on rate-based meters (DPS / HPS) and only
+        -- when enabled. Other meter types clear it.
+        if not (ns.db and ns.db.showCombatTimer) or not ns.RATE_PRIMARY[state.meterType] then
+            timerFS:SetText("")
+            return
+        end
+
+        local seconds
         local session = C_DamageMeter.GetCombatSessionFromType(state.sessionType, state.meterType)
-        if session and not issecretvalue(session) and session.duration then
-            local seconds = session.duration
-            if not issecretvalue(seconds) then
-                timerFS:SetText(ns.FormatTimer(seconds))
-                if ns.inCombat then
-                    timerFS:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
-                else
-                    timerFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
-                end
-                return
+        if session and not issecretvalue(session) then
+            -- API field is `durationSeconds` (matching TargetBreakdown), not `duration`.
+            local d = session.durationSeconds
+            if d ~= nil and not issecretvalue(d) then
+                seconds = d
             end
         end
-        timerFS:SetText("")
+
+        -- Fallback: dedicated duration API queried by session type.
+        if seconds == nil and C_DamageMeter.GetSessionDurationSeconds then
+            local ok, d = pcall(C_DamageMeter.GetSessionDurationSeconds, state.sessionType)
+            if ok and d ~= nil and not issecretvalue(d) then
+                seconds = d
+            end
+        end
+
+        if seconds == nil or issecretvalue(seconds) then
+            timerFS:SetText("")
+            return
+        end
+
+        timerFS:SetText(ns.FormatTimer(seconds))
+        if ns.inCombat then
+            timerFS:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+        else
+            timerFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+        end
     end
 
     ----------------------------------------------------------------------
@@ -897,6 +1016,22 @@ function ns.CreateMeterWindow(cfg)
                     else
                         button.nameFS:SetPoint("RIGHT", button.bar, "RIGHT", -6, 0)
                     end
+                end
+            end
+            -- Self bar shares the same font treatment as scroll rows.
+            if selfBar.nameFS then
+                selfBar.nameFS:SetFont(font, fs, "OUTLINE")
+                selfBar.rateFS:SetFont(font, fs, "OUTLINE")
+                selfBar.totalFS:SetFont(font, fs, "OUTLINE")
+                selfBar.pctFS:SetFont(font, fs, "OUTLINE")
+                local prevSelfFS = ns.AnchorColumns(selfBar)
+                selfBar.nameFS:ClearAllPoints()
+                local selfPad = selfBar.icon:IsShown() and 4 or 6
+                selfBar.nameFS:SetPoint("LEFT", selfBar.bar, "LEFT", selfPad, nudge)
+                if prevSelfFS then
+                    selfBar.nameFS:SetPoint("RIGHT", prevSelfFS, "LEFT", -4, 0)
+                else
+                    selfBar.nameFS:SetPoint("RIGHT", selfBar.bar, "RIGHT", -6, 0)
                 end
             end
             catText:SetFont(font, 11, "OUTLINE")

@@ -7,7 +7,7 @@
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 1.1.0
+## Version: 1.2.0
 ## IconTexture: Interface\Icons\Inv12_apextalent_mage_firedup
 
 Locales\enUS.lua
@@ -16,6 +16,9 @@ Locales\deDE.lua
 Locales\esES.lua
 Locales\itIT.lua
 Locales\ptBR.lua
+Locales\zhCN.lua
+Locales\zhTW.lua
+Locales\ruRU.lua
 
 Modules\Style.lua
 

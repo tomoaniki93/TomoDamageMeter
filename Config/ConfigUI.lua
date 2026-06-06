@@ -293,6 +293,24 @@ local function CreateSettingsPanel()
             function(val) ns.db.autoResetOnInstance = val end)
         AddWidget(autoResetCB, 24)
 
+        local timerCB = ns.Widgets.CreateCheckbox(parent, L["SETTINGS_COMBAT_TIMER"],
+            function() return ns.db.showCombatTimer end,
+            function(val)
+                ns.db.showCombatTimer = val
+                for _, win in ipairs(ns.windows) do
+                    if win.UpdateTimer then win.UpdateTimer() end
+                end
+            end)
+        AddWidget(timerCB, 24)
+
+        local selfBarCB = ns.Widgets.CreateCheckbox(parent, L["SETTINGS_SELF_BAR"],
+            function() return ns.db.showSelfBar end,
+            function(val)
+                ns.db.showSelfBar = val
+                ns.Refresh()
+            end)
+        AddWidget(selfBarCB, 24)
+
         -- Categories
         AddSection(L["SETTINGS_CATEGORIES"])
 

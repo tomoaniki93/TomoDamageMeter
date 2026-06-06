@@ -110,7 +110,7 @@ end
 -- Default Window Config
 ----------------------------------------------------------------------
 
-ns.MAX_WINDOWS = 3
+ns.MAX_WINDOWS = 5
 
 ns.DEFAULTS = {
     point = "CENTER",
