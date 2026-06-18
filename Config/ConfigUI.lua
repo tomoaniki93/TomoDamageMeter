@@ -303,6 +303,20 @@ local function CreateSettingsPanel()
             end)
         AddWidget(timerCB, 24)
 
+        local timerPosDD = ns.Widgets.CreateDropdown(parent, L["SETTINGS_TIMER_POSITION"],
+            {
+                { value = "RIGHT", label = L["TIMER_POS_RIGHT"] },
+                { value = "LEFT",  label = L["TIMER_POS_LEFT"] },
+            },
+            function() return ns.db.combatTimerPos or "RIGHT" end,
+            function(val)
+                ns.db.combatTimerPos = val
+                for _, win in ipairs(ns.windows) do
+                    if win.RefreshTimerPos then win.RefreshTimerPos() end
+                end
+            end)
+        AddWidget(timerPosDD, 30)
+
         local selfBarCB = ns.Widgets.CreateCheckbox(parent, L["SETTINGS_SELF_BAR"],
             function() return ns.db.showSelfBar end,
             function(val)
@@ -310,6 +324,11 @@ local function CreateSettingsPanel()
                 ns.Refresh()
             end)
         AddWidget(selfBarCB, 24)
+
+        local barTipCB = ns.Widgets.CreateCheckbox(parent, L["SETTINGS_BAR_TOOLTIPS"],
+            function() return ns.db.showBarTooltips end,
+            function(val) ns.db.showBarTooltips = val end)
+        AddWidget(barTipCB, 24)
 
         -- Categories
         AddSection(L["SETTINGS_CATEGORIES"])

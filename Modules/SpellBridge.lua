@@ -5,6 +5,16 @@ local ADDON_NAME, ns = ...
 ----------------------------------------------------------------------
 -- Uses C_DamageMeter.GetCombatSessionSourceFromType() which returns
 -- a combatSpells array for a given source GUID.  No CLEU needed.
+--
+-- Each combatSpells entry (damagemeter_combat_spell) exposes more than
+-- just amount/rate; the Midnight API also carries:
+--   creatureName   -> pet / guardian that cast the spell
+--   overkillAmount -> wasted (over-the-kill) portion
+--   isAvoidable    -> flagged avoidable damage
+--   isDeadly       -> spell delivered a killing blow
+-- These were previously dropped on the floor; they now ride along on
+-- every entry (each read guarded, since any field can be a secret value
+-- mid-combat).
 ----------------------------------------------------------------------
 
 local GetSpellInfo = C_Spell and C_Spell.GetSpellInfo or GetSpellInfo
@@ -29,6 +39,62 @@ local function GetSpellName(spellID)
         return info.name or ("Spell " .. spellID)
     end
     return "Spell " .. spellID
+end
+
+----------------------------------------------------------------------
+-- Optional enriched fields (Midnight). Each may be a secret value during
+-- combat, so every read is individually guarded; missing fields stay nil.
+----------------------------------------------------------------------
+
+local function ReadSpellExtras(spell, entry)
+    local creature = spell.creatureName
+    if creature and not issecretvalue(creature) and creature ~= "" then
+        entry.creatureName = creature
+    end
+
+    local overkill = spell.overkillAmount
+    if overkill and not issecretvalue(overkill) and overkill > 0 then
+        entry.overkill = overkill
+    end
+
+    local avoidable = spell.isAvoidable
+    if avoidable ~= nil and not issecretvalue(avoidable) and avoidable then
+        entry.isAvoidable = true
+    end
+
+    local deadly = spell.isDeadly
+    if deadly ~= nil and not issecretvalue(deadly) and deadly then
+        entry.isDeadly = true
+    end
+end
+
+-- Build a single sorted entry from a raw combatSpells element.
+local function MakeEntry(spell)
+    local spellID     = spell.spellID
+    local totalAmount = spell.totalAmount or 0
+
+    if issecretvalue(spellID) or issecretvalue(totalAmount) or totalAmount <= 0 then
+        return nil
+    end
+
+    local entry = {
+        spellID = spellID,
+        total   = totalAmount,
+        perSec  = spell.amountPerSecond,
+        name    = GetSpellName(spellID),
+        icon    = GetSpellIcon(spellID),
+    }
+    ReadSpellExtras(spell, entry)
+    return entry
+end
+
+-- Shared finalizer: sort by total desc and stamp per-spell percentages.
+local function Finalize(sorted, grandTotal)
+    table.sort(sorted, function(a, b) return a.total > b.total end)
+    for _, entry in ipairs(sorted) do
+        entry.pct = grandTotal > 0 and (entry.total / grandTotal * 100) or 0
+    end
+    return sorted, grandTotal
 end
 
 ----------------------------------------------------------------------
@@ -61,29 +127,14 @@ function ns.GetSpellBreakdown(sessionType, meterType, sourceGUID)
     local grandTotal = 0
 
     for _, spell in ipairs(combatSpells) do
-        local spellID     = spell.spellID
-        local totalAmount = spell.totalAmount or 0
-
-        -- Skip secret/invalid values
-        if not issecretvalue(spellID) and not issecretvalue(totalAmount) and totalAmount > 0 then
-            sorted[#sorted + 1] = {
-                spellID = spellID,
-                total   = totalAmount,
-                perSec  = spell.amountPerSecond,
-                name    = GetSpellName(spellID),
-                icon    = GetSpellIcon(spellID),
-            }
-            grandTotal = grandTotal + totalAmount
+        local entry = MakeEntry(spell)
+        if entry then
+            sorted[#sorted + 1] = entry
+            grandTotal = grandTotal + entry.total
         end
     end
 
-    table.sort(sorted, function(a, b) return a.total > b.total end)
-
-    for _, entry in ipairs(sorted) do
-        entry.pct = grandTotal > 0 and (entry.total / grandTotal * 100) or 0
-    end
-
-    return sorted, grandTotal
+    return Finalize(sorted, grandTotal)
 end
 
 --- Returns true if the meter type supports spell breakdown.
@@ -118,28 +169,14 @@ function ns.GetSpellBreakdownBySegment(sessionID, meterType, sourceGUID)
     local grandTotal = 0
 
     for _, spell in ipairs(combatSpells) do
-        local spellID     = spell.spellID
-        local totalAmount = spell.totalAmount or 0
-
-        if not issecretvalue(spellID) and not issecretvalue(totalAmount) and totalAmount > 0 then
-            sorted[#sorted + 1] = {
-                spellID = spellID,
-                total   = totalAmount,
-                perSec  = spell.amountPerSecond,
-                name    = GetSpellName(spellID),
-                icon    = GetSpellIcon(spellID),
-            }
-            grandTotal = grandTotal + totalAmount
+        local entry = MakeEntry(spell)
+        if entry then
+            sorted[#sorted + 1] = entry
+            grandTotal = grandTotal + entry.total
         end
     end
 
-    table.sort(sorted, function(a, b) return a.total > b.total end)
-
-    for _, entry in ipairs(sorted) do
-        entry.pct = grandTotal > 0 and (entry.total / grandTotal * 100) or 0
-    end
-
-    return sorted, grandTotal
+    return Finalize(sorted, grandTotal)
 end
 
 --- Stub: no external data to reset anymore

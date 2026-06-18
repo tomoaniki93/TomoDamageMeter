@@ -165,12 +165,23 @@ function ns.CreateMeterWindow(cfg)
     headerSep:SetPoint("TOPLEFT", subHeader, "BOTTOMLEFT")
     headerSep:SetPoint("TOPRIGHT", subHeader, "BOTTOMRIGHT")
 
-    -- Combat timer (right side of subheader)
+    -- Combat timer (left/right of subheader, GUI-configurable)
     local timerFS = subHeader:CreateFontString(nil, "ARTWORK")
     timerFS:SetFont(ns.GetFont(), ns.BAR_FONT_SIZE, "OUTLINE")
     timerFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
-    timerFS:SetJustifyH("RIGHT")
-    timerFS:SetPoint("RIGHT", subHeader, "RIGHT", -ns.TEXT_PAD, ns.GetFontNudge())
+
+    local function ApplyTimerPosition()
+        local pos = (ns.db and ns.db.combatTimerPos) or "RIGHT"
+        timerFS:ClearAllPoints()
+        if pos == "LEFT" then
+            timerFS:SetJustifyH("LEFT")
+            timerFS:SetPoint("LEFT", subHeader, "LEFT", ns.TEXT_PAD, ns.GetFontNudge())
+        else
+            timerFS:SetJustifyH("RIGHT")
+            timerFS:SetPoint("RIGHT", subHeader, "RIGHT", -ns.TEXT_PAD, ns.GetFontNudge())
+        end
+    end
+    ApplyTimerPosition()
 
     -- Session text (centered)
     local sessionText = subHeader:CreateFontString(nil, "ARTWORK")
@@ -592,6 +603,20 @@ function ns.CreateMeterWindow(cfg)
             if self.icon then self.icon:SetAlpha(ns.ICON_ALPHA) end
         end)
 
+        -- Informative hover tooltip: headline stat + a top-spell sublist for
+        -- this player. Reads state.meterType/sessionType at hover time so it
+        -- always reflects the window's current view.
+        button:HookScript("OnEnter", function(self)
+            if not (ns.db and ns.db.showBarTooltips) then return end
+            local ed = self._elementData
+            if ed and ns.BuildBarTooltip then
+                ns.BuildBarTooltip(self, ed, state.meterType, state.sessionType)
+            end
+        end)
+        button:HookScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+
         MakeDraggable(button)
 
         -- Click: open spell breakdown for this player
@@ -997,6 +1022,9 @@ function ns.CreateMeterWindow(cfg)
             typeHL:SetVertexColor(a1, a2, a3, 0.15)
             UpdateLockIcon()
         end,
+        RefreshTimerPos = function()
+            ApplyTimerPosition()
+        end,
         RefreshFonts = function()
             local fs = ns.GetFontSize()
             local font = ns.GetFont()
@@ -1041,7 +1069,7 @@ function ns.CreateMeterWindow(cfg)
             catText:SetPoint("LEFT", ns.TEXT_PAD, nudge)
             typeText:SetPoint("LEFT", ns.TEXT_PAD, nudge)
             sessionText:SetPoint("CENTER", subHeader, "CENTER", 0, nudge)
-            timerFS:SetPoint("RIGHT", subHeader, "RIGHT", -ns.TEXT_PAD, nudge)
+            ApplyTimerPosition()
             state.UpdateHeader()
         end,
         RefreshBarHeight = function()

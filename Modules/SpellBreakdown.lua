@@ -649,8 +649,20 @@ local function EnsureWindow()
             hl:SetVertexColor(1, 1, 1, 0.08)
             hl:SetAllPoints()
 
+            -- Hover tooltip: per-spell detail incl. Midnight extras
+            -- (caster pet, overkill, avoidable / killing-blow flags).
+            button:EnableMouse(true)
+            button:SetScript("OnEnter", function(self)
+                if self._data and ns.BuildSpellTooltip then
+                    ns.BuildSpellTooltip(self, self._data)
+                end
+            end)
+            button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
             button._init = true
         end
+
+        button._data = data
 
         local nudge = ns.GetFontNudge()
 
@@ -671,7 +683,7 @@ local function EnsureWindow()
         button._bar:SetMinMaxValues(0, data.maxTotal or 1)
         button._bar:SetValue(data.total or 0)
 
-        button._nameFS:SetText(data.name or "?")
+        button._nameFS:SetText(data.displayName or data.name or "?")
         button._nameFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
 
         button._pctFS:SetText(string.format("%.1f%%", data.pct or 0))
@@ -870,6 +882,8 @@ end
 
 local function PopulateSpells(frame, sourceGUID, meterType, sessionType, classFilename)
     local classColor = classFilename and RAID_CLASS_COLORS[classFilename]
+    local info = ns.TYPE_INFO[meterType]
+    local rateKey = info and info.key
 
     local spells, grandTotal = ns.GetSpellBreakdown(sessionType, meterType, sourceGUID)
 
@@ -886,15 +900,27 @@ local function PopulateSpells(frame, sourceGUID, meterType, sessionType, classFi
     local maxTotal = spells[1].total
     local elements = {}
     for i, spell in ipairs(spells) do
+        -- Pet / guardian attribution appended in a muted colour, while the
+        -- raw spell name is kept on `name` for the tooltip title.
+        local displayName = spell.name
+        if spell.creatureName then
+            displayName = displayName .. "  |cff8a8a99(" .. spell.creatureName .. ")|r"
+        end
         elements[#elements + 1] = {
-            rank       = i,
-            name       = spell.name,
-            icon       = spell.icon,
-            total      = spell.total,
-            perSec     = spell.perSec,
-            pct        = spell.pct,
-            maxTotal   = maxTotal,
-            classColor = classColor,
+            rank        = i,
+            name        = spell.name,
+            displayName = displayName,
+            icon        = spell.icon,
+            total       = spell.total,
+            perSec      = spell.perSec,
+            pct         = spell.pct,
+            maxTotal    = maxTotal,
+            classColor  = classColor,
+            rateKey     = rateKey,
+            creatureName = spell.creatureName,
+            overkill    = spell.overkill,
+            isAvoidable = spell.isAvoidable,
+            isDeadly    = spell.isDeadly,
         }
     end
     frame._dataProvider:InsertTable(elements)
@@ -1020,15 +1046,24 @@ function ns.ShowTargetSpells(targetName, sourceCreatureID, sessionID)
     local maxTotal = spells[1].total
     local elements = {}
     for i, spell in ipairs(spells) do
+        local displayName = spell.name
+        if spell.creatureName then
+            displayName = displayName .. "  |cff8a8a99(" .. spell.creatureName .. ")|r"
+        end
         elements[#elements + 1] = {
-            rank       = i,
-            name       = spell.name,
-            icon       = spell.icon,
-            total      = spell.total,
-            perSec     = spell.perSec,
-            pct        = spell.pct,
-            maxTotal   = maxTotal,
-            classColor = classColor,
+            rank        = i,
+            name        = spell.name,
+            displayName = displayName,
+            icon        = spell.icon,
+            total       = spell.total,
+            perSec      = spell.perSec,
+            pct         = spell.pct,
+            maxTotal    = maxTotal,
+            classColor  = classColor,
+            creatureName = spell.creatureName,
+            overkill    = spell.overkill,
+            isAvoidable = spell.isAvoidable,
+            isDeadly    = spell.isDeadly,
         }
     end
     frame._dataProvider:InsertTable(elements)

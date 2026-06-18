@@ -32,6 +32,8 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         if ns.db.autoResetOnInstance == nil then ns.db.autoResetOnInstance = true end
         if ns.db.showCombatTimer == nil then ns.db.showCombatTimer = true end
         if ns.db.showSelfBar == nil then ns.db.showSelfBar = false end
+        if ns.db.showBarTooltips == nil then ns.db.showBarTooltips = true end
+        if ns.db.combatTimerPos == nil then ns.db.combatTimerPos = "RIGHT" end
 
         -- Category visibility (empty = all enabled)
         if not ns.db.disabledCategories then ns.db.disabledCategories = {} end

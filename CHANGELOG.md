@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.3.0
+
+### Modules/SpellBridge.lua
+- **New**: Per-spell extraction now keeps the extra fields the Midnight `C_DamageMeter` API exposes on each `combatSpells` entry: `creatureName` (casting pet / guardian), `overkillAmount`, `isAvoidable` and `isDeadly`. These were previously discarded. A new `ReadSpellExtras()` helper reads each one behind its own `issecretvalue` guard, so any field that is still secret mid-combat is simply left `nil` rather than risking taint.
+- **Refactor**: The two spell-collection paths (`GetSpellBreakdown` and `GetSpellBreakdownBySegment`) shared an identical inline entry constructor and sort/percent pass. Both now route through `MakeEntry()` (build + enrich a single entry, skipping secret/zero rows) and `Finalize()` (sort by total desc, stamp per-spell `pct`). No behavioural change to the existing fields.
+
+### Core/Utils.lua
+- **New**: `ns.BuildBarTooltip(owner, ed, meterType, sessionType)` — builds the player-bar hover tooltip: class-coloured name, headline rate (DPS/HPS, rate-primary meters only), total with raid share, and a top-5 spell sublist (inline icon + per-spell %). Reuses `ns.GetSpellBreakdown`, so it shares the breakdown window's data path. Every value is `issecretvalue`-guarded; anything unreadable is omitted instead of shown.
+- **New**: `ns.BuildSpellTooltip(owner, data)` — per-spell hover tooltip for breakdown rows: name, "cast by" pet line, rate, total + %, overkill, and avoidable / killing-blow flags.
+- Both helpers run on hover only (never on the combat refresh path).
+
+### Modules/DamageMeter.lua
+- **New**: `BuildBarVisuals` now wires an `OnEnter`/`OnLeave` pair that calls `ns.BuildBarTooltip` for the hovered row, reading `state.meterType`/`state.sessionType` at hover time so the tooltip always matches the window's current view. Shared by both the ScrollBox rows and the pinned self bar (both go through `BuildBarVisuals`). Gated on the new `showBarTooltips` setting.
+
+### Modules/SpellBreakdown.lua
+- **New**: Pet / guardian attribution — when a spell carries a `creatureName`, the breakdown row label appends it in a muted colour (e.g. `Kill Command  (Hati)`). The clean spell name is preserved separately for the tooltip title.
+- **New**: Spell rows are now mouse-enabled and show `ns.BuildSpellTooltip` on hover; the row's element data is stashed on the frame each refresh so the handler always reflects current values.
+- Both `PopulateSpells` (per-player) and `ShowTargetSpells` (per-segment enemy view) carry the enriched fields through to their element tables.
+
+### Core/Database.lua
+- **New**: Global default `showBarTooltips = true`.
+
+### Config/ConfigUI.lua
+- **New**: "Bar Tooltips (hover)" checkbox in the General section.
+
+### Locales
+- **New**: `SETTINGS_BAR_TOOLTIPS`, `TIP_TOP_SPELLS`, `TIP_TOTAL`, `TIP_OVERKILL`, `TIP_AVOIDABLE`, `TIP_KILLING_BLOW`, `TIP_CAST_BY`, `TIP_CLICK_BREAKDOWN` added to `enUS` (base/fallback) and translated in `frFR`. Other locales inherit the English strings until translated.
+
+
 ## v1.2.0
 
 ### Modules/DamageMeter.lua

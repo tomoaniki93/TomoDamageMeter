@@ -1,6 +1,6 @@
 # TomoDamageMeter
 
-# ![TomoDamageMeter](https://img.shields.io/badge/TomoDamageMeter-v1.2.0-0cd29f?style=for-the-badge) ![WoW](https://img.shields.io/badge/WoW-Midnight-blue?style=for-the-badge) ![Interface](https://img.shields.io/badge/Interface-120007-orange?style=for-the-badge)
+# ![TomoDamageMeter](https://img.shields.io/badge/TomoDamageMeter-v1.3.0-0cd29f?style=for-the-badge) ![WoW](https://img.shields.io/badge/WoW-Midnight-blue?style=for-the-badge) ![Interface](https://img.shields.io/badge/Interface-120007-orange?style=for-the-badge)
 
 A standalone, lightweight damage meter addon for **World of Warcraft: Midnight** (Retail). It replaces Blizzard's default Damage Meter UI with a dark, customizable, multi-window interface while leveraging the built-in `C_DamageMeter` data API.
 
@@ -136,6 +136,12 @@ Each bar in the main meter can display up to 3 value columns:
 - **Spell icons and names** are resolved via `C_Spell.GetSpellInfo()`.
 
 ## Changelog
+
+### v1.3.0
+- **New**: Informative hover tooltips on player bars — headline rate, total, raid share, and a top-5 spell sublist with icons (settings toggle, on by default)
+- **New**: Per-spell hover tooltips in the breakdown window — DPS/total/%, overkill, and avoidable / killing-blow flags
+- **New**: Pet & guardian attribution in the spell breakdown (e.g. `Kill Command (Hati)`)
+- **New**: `SpellBridge` now captures the extra `C_DamageMeter` per-spell fields (`creatureName`, `overkillAmount`, `isAvoidable`, `isDeadly`), each `issecretvalue`-guarded
 
 ### v1.2.0
 - **Fix**: Combat timer now displays — was reading the wrong session field (`duration` instead of `durationSeconds`)

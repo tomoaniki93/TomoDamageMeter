@@ -235,6 +235,131 @@ function ns.AnchorColumns(button)
 end
 
 ----------------------------------------------------------------------
+-- Informative hover tooltips
+----------------------------------------------------------------------
+-- Both builders are pure display helpers. They run only on hover (never on
+-- the combat hot path) and guard every value with issecretvalue before any
+-- Lua-side arithmetic. Anything still secret is simply omitted from the
+-- tooltip rather than risking taint.
+
+local ICON_ESCAPE = "|T%d:14:14:0:0:64:64:5:59:5:59|t "
+
+-- Player bar tooltip: identity + headline stat + a top-spell sublist.
+-- @param owner Frame the tooltip anchors to
+-- @param ed table the bar's element data (name / classFilename / totals / GUID)
+-- @param meterType number Enum.DamageMeterType
+-- @param sessionType number Enum.DamageMeterSessionType
+function ns.BuildBarTooltip(owner, ed, meterType, sessionType)
+    local L = ns.L
+    local GT = GameTooltip
+    GT:SetOwner(owner, "ANCHOR_RIGHT")
+    GT:ClearLines()
+
+    -- Title: player name, class-coloured when the class is known.
+    local name = ed.name
+    if name ~= nil and issecretvalue(name) then name = "?" end
+    if name and ns.db and ns.db.stripRealm then name = ns.StripRealm(name) end
+    local cc = ed.classFilename and RAID_CLASS_COLORS[ed.classFilename]
+    if cc then
+        GT:AddLine(name or "?", cc.r, cc.g, cc.b)
+    else
+        GT:AddLine(name or "?", 1, 1, 1)
+    end
+
+    local isAction = ns.ACTIONS_TYPES[meterType]
+
+    -- Headline rate (DPS / HPS) for rate-primary meters, when readable.
+    if ns.RATE_PRIMARY[meterType] then
+        local rate = ed.amountPerSecond
+        if rate ~= nil and not issecretvalue(rate) then
+            local info = ns.TYPE_INFO[meterType]
+            local label = (info and L[info.key]) or L["DPS"]
+            GT:AddDoubleLine(label, ns.FormatNumber(rate, "1dec"), 0.7, 0.7, 0.7, 1, 1, 1)
+        end
+    end
+
+    -- Total (+ share of the session) when readable.
+    local total = ed.totalAmount
+    if total ~= nil and not issecretvalue(total) then
+        local right = ns.FormatNumber(total, isAction and "short" or "1dec")
+        local st = ed.sessionTotal
+        if st and not issecretvalue(st) and st > 0 then
+            right = right .. string.format("  (%.1f%%)", total / st * 100)
+        end
+        GT:AddDoubleLine(L["TIP_TOTAL"], right, 0.7, 0.7, 0.7, 1, 1, 1)
+    end
+
+    -- Top-spell sublist (reuses the same data path as the breakdown window).
+    if ed.sourceGUID and not issecretvalue(ed.sourceGUID) then
+        local spells = ns.GetSpellBreakdown(sessionType, meterType, ed.sourceGUID)
+        if spells and #spells > 0 then
+            GT:AddLine(" ")
+            GT:AddLine(L["TIP_TOP_SPELLS"], ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+            for i = 1, math.min(5, #spells) do
+                local s = spells[i]
+                local label = s.name or "?"
+                if s.creatureName then
+                    label = label .. "  |cff8a8a99(" .. s.creatureName .. ")|r"
+                end
+                if s.icon then label = ICON_ESCAPE:format(s.icon) .. label end
+                local right = ns.FormatNumber(s.total, "1dec")
+                if s.pct and s.pct > 0 then
+                    right = string.format("%.0f%%  ", s.pct) .. right
+                end
+                GT:AddDoubleLine(label, right, 0.9, 0.9, 0.9, 0.78, 0.78, 0.82)
+            end
+        end
+        GT:AddLine(" ")
+        GT:AddLine(L["TIP_CLICK_BREAKDOWN"], 0.2, 1, 0.2)
+    end
+
+    GT:Show()
+end
+
+-- Spell row tooltip (breakdown window): per-spell detail incl. the Midnight
+-- extras (caster pet, overkill, avoidable / killing-blow flags).
+-- @param owner Frame the tooltip anchors to
+-- @param data table the spell row's element data
+function ns.BuildSpellTooltip(owner, data)
+    local L = ns.L
+    local GT = GameTooltip
+    GT:SetOwner(owner, "ANCHOR_RIGHT")
+    GT:ClearLines()
+
+    GT:AddLine(data.name or "?", 1, 1, 1)
+    if data.creatureName then
+        GT:AddLine(string.format(L["TIP_CAST_BY"], data.creatureName), 0.6, 0.6, 0.7)
+    end
+
+    if data.perSec and not issecretvalue(data.perSec) and data.perSec > 0 then
+        local label = (data.rateKey and L[data.rateKey]) or L["DPS"]
+        GT:AddDoubleLine(label, ns.FormatNumber(data.perSec, "1dec"), 0.7, 0.7, 0.7, 1, 1, 1)
+    end
+
+    if data.total and not issecretvalue(data.total) then
+        local right = ns.FormatNumber(data.total, "1dec")
+        if data.pct and data.pct > 0 then
+            right = right .. string.format("  (%.1f%%)", data.pct)
+        end
+        GT:AddDoubleLine(L["TIP_TOTAL"], right, 0.7, 0.7, 0.7, 1, 1, 1)
+    end
+
+    if data.overkill and not issecretvalue(data.overkill) and data.overkill > 0 then
+        GT:AddDoubleLine(L["TIP_OVERKILL"], ns.FormatNumber(data.overkill, "1dec"),
+            0.7, 0.7, 0.7, 1, 0.5, 0.5)
+    end
+
+    if data.isAvoidable then
+        GT:AddLine(L["TIP_AVOIDABLE"], 1, 0.82, 0.2)
+    end
+    if data.isDeadly then
+        GT:AddLine(L["TIP_KILLING_BLOW"], 1, 0.3, 0.3)
+    end
+
+    GT:Show()
+end
+
+----------------------------------------------------------------------
 -- Report to chat: data snapshot
 ----------------------------------------------------------------------
 
