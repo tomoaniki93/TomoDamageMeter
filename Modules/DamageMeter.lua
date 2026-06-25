@@ -562,7 +562,7 @@ function ns.CreateMeterWindow(cfg)
 
         -- Status bar
         local bar = CreateFrame("StatusBar", nil, button)
-        bar:SetStatusBarTexture(ns.FLAT)
+        bar:SetStatusBarTexture(ns.GetBarTexture())
         button.bar = bar
 
         -- Name
@@ -715,6 +715,14 @@ function ns.CreateMeterWindow(cfg)
         local r, g, b = 0.5, 0.5, 0.5
         if color then r, g, b = color.r, color.g, color.b end
         button.bar:SetStatusBarColor(r, g, b, 1.0)
+
+        -- Live skin: swap the fill texture when the active skin/texture changed
+        local barTex = ns.GetBarTexture()
+        if button._tex ~= barTex then
+            button.bar:SetStatusBarTexture(barTex)
+            button._tex = barTex
+            button.fill = button.bar:GetStatusBarTexture()
+        end
 
         local fill = button.bar:GetStatusBarTexture()
         fill:SetGradient("HORIZONTAL",
@@ -1021,6 +1029,35 @@ function ns.CreateMeterWindow(cfg)
             typeText:SetTextColor(a1, a2, a3, ns.ACCENT[4])
             typeHL:SetVertexColor(a1, a2, a3, 0.15)
             UpdateLockIcon()
+        end,
+        RefreshSkin = function()
+            -- Re-tint all skin-driven chrome from the live Style tables
+            windowBG:SetVertexColor(ns.BG[1], ns.BG[2], ns.BG[3], ns.db and ns.db.bgAlpha or ns.BG[4])
+            local bc = ns.BORDER_COLOR
+            topBorder:SetVertexColor(bc[1], bc[2], bc[3], bc[4])
+            bottomBorder:SetVertexColor(bc[1], bc[2], bc[3], bc[4])
+            leftBorder:SetVertexColor(bc[1], bc[2], bc[3], bc[4])
+            rightBorder:SetVertexColor(bc[1], bc[2], bc[3], bc[4])
+            headerSep:SetVertexColor(bc[1], bc[2], bc[3], bc[4])
+            headerSep2:SetVertexColor(bc[1], bc[2], bc[3], bc[4])
+            subHeaderBG:SetVertexColor(unpack(ns.HEADER_BG))
+            headerBG:SetVertexColor(unpack(ns.HEADER_BG))
+            subHeaderHL:SetVertexColor(unpack(ns.HEADER_HOVER_BG))
+            catHL:SetVertexColor(unpack(ns.HEADER_HOVER_BG))
+            -- Re-apply the active bar texture to every live row and the self bar
+            local tex = ns.GetBarTexture()
+            for _, button in scrollBox:EnumerateFrames() do
+                if button.bar then
+                    button.bar:SetStatusBarTexture(tex)
+                    button._tex = tex
+                    button.fill = button.bar:GetStatusBarTexture()
+                end
+            end
+            if selfBar and selfBar.bar then
+                selfBar.bar:SetStatusBarTexture(tex)
+                selfBar._tex = tex
+                selfBar.fill = selfBar.bar:GetStatusBarTexture()
+            end
         end,
         RefreshTimerPos = function()
             ApplyTimerPosition()

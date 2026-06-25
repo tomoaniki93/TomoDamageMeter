@@ -26,6 +26,8 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         ns.db.bgAlpha    = ns.db.bgAlpha    or ns.BG[4]
         ns.db.oocAlpha   = ns.db.oocAlpha   or 1
         ns.db.accentColor = ns.db.accentColor or { ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3] }
+        if ns.db.skin == nil then ns.db.skin = "DARK" end
+        ns.db.barTexture = ns.db.barTexture or (ns.TEX_FLAT or "Tomo Flat")
         ns.db.reportChannel = ns.db.reportChannel or "SAY"
         ns.db.reportLines   = ns.db.reportLines   or 5
         ns.db.breakdownAlpha = ns.db.breakdownAlpha or 0.85
@@ -39,6 +41,10 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         if not ns.db.disabledCategories then ns.db.disabledCategories = {} end
 
         ns.ApplyAccentColor()
+
+        -- Apply the saved skin's structural look before any window is built
+        -- (honours saved per-setting tweaks; see Modules/Skins.lua).
+        if ns.ApplySkin then ns.ApplySkin(ns.db.skin, false) end
 
         -- Column config
         if not ns.db.columns then

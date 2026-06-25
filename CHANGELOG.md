@@ -1,5 +1,38 @@
 # Changelog
 
+## v1.4.0
+
+### Modules/Skins.lua
+- **New**: Skin system. A registry of four presets — `DARK` (the existing look: black background, dark-blue header, apple-green accent, flat fill), `NEON` (near-black background, `#CC44FF` TomoSuite-signature purple accent, smooth fill), `MINIMAL` (muted grey accent, near-invisible border, thin rows, zero spacing, flat fill) and `GLOSSY` (visible border, raised header, gold accent, glossy fill). Each preset bundles the structural look (background, header, header-hover, border, scrollbar thumb, default accent) plus the bar fill texture, fill alpha and row density.
+- **New**: `ns.ApplySkin(key, seedDefaults)` mutates the live `ns.*` Style tables in place so a switch takes effect without a `/reload`. With `seedDefaults` (the user picked a skin in the options) it also overwrites the individual settings — accent colour, background opacity, bar height and bar texture — so a preset acts as a customizable bundle the user can still fine-tune afterwards. With `seedDefaults` false (the login re-apply in `Database.lua`) it sets only the structural look and preserves saved per-setting tweaks.
+- **New**: LibSharedMedia integration. `ns.GetBarTexture()` resolves the active `barTexture` DB key to a file path (falling back to the flat `WHITE8X8` fill when LSM is missing or the key is unknown); `ns.GetTextureList()` returns every statusbar registered in LSM, sorted, for the texture picker. The three bundled textures (`Tomo Flat`, `Tomo Smooth`, `Tomo Glossy`) are registered into LSM so they appear alongside textures from any other addon the user runs.
+- **New**: `ns.OnSkinChanged` callback registry with one built-in listener that re-skins every open window in place (`RefreshSkin` + `RefreshAccentColor` + `RefreshBarHeight`).
+
+### Libs/ (LibStub, CallbackHandler-1.0, LibSharedMedia-3.0)
+- **New**: Bundled the standard LibSharedMedia-3.0 stack (with its LibStub + CallbackHandler-1.0 dependencies) so "expose every LSM statusbar" is self-contained and does not depend on another addon having loaded the library first. Loaded before everything else in the `.toc`.
+
+### Assets/Textures/statusbar-smooth.tga, statusbar-glossy.tga
+- **New**: Two bundled 256×32 statusbar fills (uncompressed 32-bit BGRA, top-left origin — same format as the existing icon assets). `smooth` is a gentle top-lit gradient; `glossy` adds a bright sheen band near the top over a darker base. Both are greyscale luminance so the per-row class colour (applied via `SetStatusBarColor` and the existing horizontal `SetGradient`) tints them correctly.
+
+### TomoDamageMeter.toc
+- **New**: `Libs\` block (LibStub → CallbackHandler-1.0 → LibSharedMedia-3.0) loaded first, and `Modules\Skins.lua` loaded right after `Modules\Style.lua` (Skins reads the base Style values and registers textures at load time).
+- Version bumped to 1.4.0.
+
+### Core/Database.lua
+- **New**: Global defaults `skin = "DARK"` and `barTexture = "Tomo Flat"`. First-run defaults are aligned with the `DARK` preset, so a fresh install is visually identical to v1.3.0.
+- **New**: After accent setup and **before** any window is created, the saved skin's structural look is applied via `ns.ApplySkin(ns.db.skin, false)`, so windows build their chrome from the correct values on login (no first-frame flash).
+
+### Modules/DamageMeter.lua
+- **New**: Bars are created with `ns.GetBarTexture()` instead of the hardcoded flat fill, and `UpdateButton` swaps the fill texture in place when the active skin/texture changes — guarded by a cached `button._tex` so it only re-textures on an actual change, keeping the per-frame refresh path cheap. This is what makes the texture/skin switch take effect on the next refresh.
+- **New**: `RefreshSkin` window method — re-tints every skin-driven chrome element (background + opacity, the four borders, both header separators, the sub-header and header backgrounds, and the category / sub-header hover highlights) from the live Style tables, then re-applies the active bar texture to every pooled row and the pinned self bar. Mirrors the existing `RefreshAccentColor` / `RefreshBarHeight` pattern.
+
+### Config/ConfigUI.lua
+- **New**: Two dropdowns at the top of the Appearance section — **Skin** (cycles the four presets; on change calls `ApplySkin(..., true)` then rebuilds the tab so the seeded accent / opacity / height / texture controls show their new values) and **Bar Texture** (every LSM statusbar; on change re-skins all open windows live).
+
+### Locales
+- **New**: `SETTINGS_SKIN`, `SETTINGS_BAR_TEXTURE`, `SKIN_DARK`, `SKIN_NEON`, `SKIN_MINIMAL`, `SKIN_GLOSSY` added and translated across all nine bundled locales (`enUS`, `frFR`, `deDE`, `esES`, `itIT`, `ptBR`, `zhCN`, `zhTW`, `ruRU`). The `Tomo Dark` / `Tomo Neon` preset names are kept as brand names; the descriptive `Minimal` / `Glossy` names and both UI labels are localized per language.
+
+
 ## v1.3.0
 
 ### Modules/SpellBridge.lua

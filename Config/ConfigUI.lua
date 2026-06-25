@@ -188,6 +188,31 @@ local function CreateSettingsPanel()
         -- Appearance
         AddSection(L["SETTINGS_APPEARANCE"])
 
+        -- Skin preset (seeds accent / bg opacity / bar height / texture)
+        local skinDD = ns.Widgets.CreateDropdown(parent, L["SETTINGS_SKIN"],
+            ns.GetSkinList(),
+            function() return ns.db.skin or "DARK" end,
+            function(val)
+                ns.ApplySkin(val, true)
+                if settingsFrame and settingsFrame.RebuildTabs then
+                    settingsFrame.RebuildTabs()
+                end
+            end)
+        AddWidget(skinDD, 30)
+
+        -- Bar texture (every statusbar registered in LibSharedMedia)
+        local texDD = ns.Widgets.CreateDropdown(parent, L["SETTINGS_BAR_TEXTURE"],
+            ns.GetTextureList(),
+            function() return ns.db.barTexture or ns.TEX_FLAT end,
+            function(val)
+                ns.db.barTexture = val
+                for _, win in ipairs(ns.windows) do
+                    if win.RefreshSkin then win.RefreshSkin() end
+                    win.Refresh()
+                end
+            end)
+        AddWidget(texDD, 30)
+
         local fontSlider = ns.Widgets.CreateSlider(parent, L["SETTINGS_FONT_SIZE"],
             8, 22, 1,
             function() return ns.db.fontSize end,
