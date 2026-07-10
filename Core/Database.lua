@@ -37,6 +37,9 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         if ns.db.showBarTooltips == nil then ns.db.showBarTooltips = true end
         if ns.db.combatTimerPos == nil then ns.db.combatTimerPos = "RIGHT" end
 
+        -- Optional modules
+        if ns.db.deathRecapAutoShow == nil then ns.db.deathRecapAutoShow = false end
+
         -- Category visibility (empty = all enabled)
         if not ns.db.disabledCategories then ns.db.disabledCategories = {} end
 
@@ -97,6 +100,7 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         eventFrame:UnregisterAllEvents()
         if ns._instanceFrame then ns._instanceFrame:UnregisterAllEvents() end
         if ns._dmEventFrame then ns._dmEventFrame:UnregisterAllEvents() end
+        if ns._deathRecapFrame then ns._deathRecapFrame:UnregisterAllEvents() end
         -- Cancel any running tickers
         if ns._timerTicker then ns._timerTicker:Cancel(); ns._timerTicker = nil end
         if ns._refreshTicker then ns._refreshTicker:Cancel(); ns._refreshTicker = nil end

@@ -16,6 +16,7 @@ function ns.CreateMeterWindow(cfg)
         sessionType = cfg.sessionType,
         dataGeneration = 0,
         elements = {},
+        expandedGUID = nil,   -- GUID of the player whose spells are shown inline
     }
 
     -- Forward declaration: defined further down but referenced by the
@@ -538,6 +539,21 @@ function ns.CreateMeterWindow(cfg)
 
     local view = CreateScrollBoxListLinearView()
     view:SetElementExtent(ns.GetBarHeight())
+
+    -- Inline spell sub-rows are a touch shorter than a player row so the
+    -- hierarchy reads at a glance. The extent calculator switches the view
+    -- to per-element heights (player rows keep GetBarHeight()); the fixed
+    -- extent above stays as a harmless fallback.
+    local function SpellRowHeight()
+        return math.max(14, ns.GetBarHeight() - 3)
+    end
+    view:SetElementExtentCalculator(function(_, elementData)
+        if elementData and elementData.kind == "spell" then
+            return SpellRowHeight()
+        end
+        return ns.GetBarHeight()
+    end)
+
     view:SetPadding(0, 0, 0, 0, 0)
 
     local dataProvider = CreateDataProvider()
@@ -551,6 +567,19 @@ function ns.CreateMeterWindow(cfg)
     local function BuildBarVisuals(button)
         button:SetHeight(ns.GetBarHeight())
         button:EnableMouse(true)
+        button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+        -- Accent stripe on the left edge: marks the expanded player row and
+        -- brackets its inline spell sub-rows into a visual group. Hidden by
+        -- default; toggled per-row in UpdateButton / UpdateSpellRow.
+        local groupAccent = button:CreateTexture(nil, "OVERLAY")
+        groupAccent:SetTexture(ns.FLAT)
+        groupAccent:SetVertexColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3], 0.9)
+        groupAccent:SetWidth(2)
+        groupAccent:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
+        groupAccent:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, ns.BAR_SPACING)
+        groupAccent:Hide()
+        button.groupAccent = groupAccent
 
         -- Spec icon
         local iconFrame = button:CreateTexture(nil, "ARTWORK")
@@ -609,7 +638,12 @@ function ns.CreateMeterWindow(cfg)
         button:HookScript("OnEnter", function(self)
             if not (ns.db and ns.db.showBarTooltips) then return end
             local ed = self._elementData
-            if ed and ns.BuildBarTooltip then
+            if not ed then return end
+            if ed.kind == "spell" then
+                if not ed.isEmpty and ns.BuildSpellTooltip then
+                    ns.BuildSpellTooltip(self, ed)
+                end
+            elseif ns.BuildBarTooltip then
                 ns.BuildBarTooltip(self, ed, state.meterType, state.sessionType)
             end
         end)
@@ -619,17 +653,42 @@ function ns.CreateMeterWindow(cfg)
 
         MakeDraggable(button)
 
-        -- Click: open spell breakdown for this player
+        -- Click handling:
+        --   Left  -> toggle the inline spell breakdown under this player row
+        --   Right -> open the standalone breakdown window (searchable player
+        --            strip, handy for full raids)
         button:SetScript("OnClick", function(self, btn)
-            if btn == "LeftButton" and self._elementData then
-                local ed = self._elementData
-                if ed.sourceGUID and not issecretvalue(ed.sourceGUID) then
-                    local playerName = (not issecretvalue(ed.name) and ns.db.stripRealm)
+            local ed = self._elementData
+            if not ed or ed.kind == "spell" then return end
+
+            -- Deaths category: open the death recap for this player (either
+            -- mouse button). Uses deathRecapID, not the GUID, so it still works
+            -- if the source GUID happens to be a secret value.
+            if state.meterType == Enum.DamageMeterType.Deaths then
+                local rid = ed.deathRecapID
+                if rid and not issecretvalue(rid) and rid > 0 and ns.ShowDeathRecap then
+                    local pname = (not issecretvalue(ed.name) and ns.db.stripRealm)
                         and ns.StripRealm(ed.name) or (not issecretvalue(ed.name) and ed.name or "?")
-                    if ns.ShowSpellBreakdown then
-                        ns.ShowSpellBreakdown(playerName, ed.sourceGUID, state.meterType, state.sessionType, ed.classFilename)
-                    end
+                    ns.ShowDeathRecap(rid, pname, ed.classFilename)
                 end
+                return
+            end
+
+            if not (ed.sourceGUID and not issecretvalue(ed.sourceGUID)) then return end
+
+            if btn == "RightButton" then
+                local playerName = (not issecretvalue(ed.name) and ns.db.stripRealm)
+                    and ns.StripRealm(ed.name) or (not issecretvalue(ed.name) and ed.name or "?")
+                if ns.ShowSpellBreakdown then
+                    ns.ShowSpellBreakdown(playerName, ed.sourceGUID, state.meterType, state.sessionType, ed.classFilename)
+                end
+            else
+                if state.expandedGUID == ed.sourceGUID then
+                    state.expandedGUID = nil
+                else
+                    state.expandedGUID = ed.sourceGUID
+                end
+                state.CollectData()
             end
         end)
     end
@@ -706,10 +765,119 @@ function ns.CreateMeterWindow(cfg)
     end
 
     ----------------------------------------------------------------------
+    -- UpdateSpellRow (inline spell sub-row rendering)
+    ----------------------------------------------------------------------
+    -- Renders one indented spell bar beneath its expanded player. Reuses the
+    -- same widgets a player row uses (icon / bar / name / value columns) so
+    -- the columns line up vertically; only the anchoring, colours and the
+    -- indent differ. Element data comes from ns.AppendSpellRows, i.e. already
+    -- fully-resolved plain numbers (no secret-value handling needed here).
+    local SPELL_INDENT = 14
+
+    local function UpdateSpellRow(button, data)
+        local rowH = SpellRowHeight()
+
+        -- Live skin swap (mirrors the player-row path)
+        local barTex = ns.GetBarTexture()
+        if button._tex ~= barTex then
+            button.bar:SetStatusBarTexture(barTex)
+            button._tex = barTex
+            button.fill = button.bar:GetStatusBarTexture()
+        end
+
+        if button.groupAccent then button.groupAccent:Show() end
+
+        -- Empty placeholder ("no data" under an expanded player)
+        if data.isEmpty then
+            button.icon:Hide()
+            if button.actionFS then button.actionFS:Hide() end
+            button.rateFS:SetText(""); button.rateFS:Hide()
+            button.totalFS:SetText(""); button.totalFS:Hide()
+            button.pctFS:SetText(""); button.pctFS:Hide()
+            button.bar:ClearAllPoints()
+            button.bar:SetPoint("TOPLEFT", SPELL_INDENT, 0)
+            button.bar:SetPoint("BOTTOMRIGHT", 0, ns.BAR_SPACING)
+            button.bar:SetMinMaxValues(0, 1)
+            button.bar:SetValue(0)
+            button.bar:SetStatusBarColor(0.3, 0.3, 0.33, 1)
+            local efill = button.bar:GetStatusBarTexture()
+            efill:SetAlpha(0)
+            button.nameFS:ClearAllPoints()
+            button.nameFS:SetPoint("LEFT", button.bar, "LEFT", 6, ns.GetFontNudge())
+            button.nameFS:SetPoint("RIGHT", button.bar, "RIGHT", -6, 0)
+            button.nameFS:SetText(data.name or "")
+            button.nameFS:SetTextColor(unpack(ns.TEXT_MUTED))
+            return
+        end
+
+        -- Class-tinted, dimmer-than-player bar so sub-rows recede visually
+        local cc = data.classFilename and RAID_CLASS_COLORS[data.classFilename]
+        local r, g, b = 0.5, 0.5, 0.5
+        if cc then r, g, b = cc.r, cc.g, cc.b end
+        button.bar:SetStatusBarColor(r, g, b, 1.0)
+        local fill = button.bar:GetStatusBarTexture()
+        fill:SetGradient("HORIZONTAL",
+            CreateColor(r * 0.45, g * 0.45, b * 0.45, 1),
+            CreateColor(r * 0.15, g * 0.15, b * 0.15, 1))
+        fill:SetAlpha(ns.BAR_ALPHA)
+
+        -- Indented spell icon
+        local iconSize = math.max(8, rowH - ns.BAR_SPACING - 2)
+        button.icon:SetTexture(data.icon or 134400)
+        button.icon:ClearAllPoints()
+        button.icon:SetPoint("LEFT", button, "LEFT", SPELL_INDENT, 0)
+        button.icon:SetSize(iconSize, iconSize)
+        button.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        button.icon:SetAlpha(1)
+        button.icon:Show()
+
+        -- Bar fills the remaining width after the indented icon
+        button.bar:ClearAllPoints()
+        button.bar:SetPoint("TOPLEFT", button.icon, "TOPRIGHT", ns.BAR_SPACING + 1, 0)
+        button.bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, ns.BAR_SPACING)
+        button.bar:SetMinMaxValues(0, data.maxAmount or 1)
+        button.bar:SetValue(data.totalAmount or 0)
+
+        -- Spell name (rank prefix + optional pet attribution already folded in)
+        button.nameFS:SetText(data.displayName or data.name or "?")
+        button.nameFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
+
+        -- Same column pipeline as player rows: rate / total / pct all line up.
+        -- sessionTotal is set to the player's own total upstream, so the pct
+        -- column reads as the spell's share of that player.
+        ns.PopulateColumnValues(button, data)
+        local prevFS = ns.AnchorColumns(button)
+
+        button.nameFS:ClearAllPoints()
+        button.nameFS:SetPoint("LEFT", button.bar, "LEFT", 6, ns.GetFontNudge())
+        if prevFS then
+            button.nameFS:SetPoint("RIGHT", prevFS, "LEFT", -4, 0)
+        else
+            button.nameFS:SetPoint("RIGHT", button.bar, "RIGHT", -6, 0)
+        end
+    end
+
+    ----------------------------------------------------------------------
     -- UpdateButton
     ----------------------------------------------------------------------
 
     function UpdateButton(button, elementData)
+        -- Inline spell sub-row: separate rendering path, then done.
+        if elementData.kind == "spell" then
+            UpdateSpellRow(button, elementData)
+            return
+        end
+
+        -- Player row: hide the group stripe unless this is the expanded player.
+        if button.groupAccent then
+            local isExpanded = false
+            local g = elementData.sourceGUID
+            if g and not issecretvalue(g) and state.expandedGUID and g == state.expandedGUID then
+                isExpanded = true
+            end
+            button.groupAccent:SetShown(isExpanded)
+        end
+
         -- Class color
         local color = RAID_CLASS_COLORS[elementData.classFilename]
         local r, g, b = 0.5, 0.5, 0.5
@@ -762,6 +930,13 @@ function ns.CreateMeterWindow(cfg)
         if elementData.specIconID and not issecretvalue(elementData.specIconID)
             and elementData.specIconID > 0 then
             button.icon:SetTexture(elementData.specIconID)
+            button.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            -- Restore spec-icon geometry: a pooled frame may have just served
+            -- as an inline spell sub-row, which re-anchors and resizes the icon.
+            button.icon:ClearAllPoints()
+            button.icon:SetPoint("TOPLEFT", 0, 0)
+            button.icon:SetPoint("BOTTOMLEFT", 0, ns.BAR_SPACING)
+            button.icon:SetWidth(ns.GetBarHeight() - ns.BAR_SPACING)
             button.icon:Show()
             local iconSpace = ns.GetBarHeight() - ns.BAR_SPACING
             button.bar:SetPoint("TOPLEFT", iconSpace, 0)
@@ -831,8 +1006,10 @@ function ns.CreateMeterWindow(cfg)
         local isAction = ns.ACTIONS_TYPES[state.meterType] or false
         local maxEntries = isAction and 5 or #sources
         local elements = {}
+        local expandFound = false
         for i, source in ipairs(sources) do
             if i > maxEntries then break end
+            local guid = source.sourceGUID
             elements[#elements + 1] = {
                 name = source.name,
                 classFilename = source.classFilename,
@@ -841,10 +1018,25 @@ function ns.CreateMeterWindow(cfg)
                 amountPerSecond = source.amountPerSecond,
                 maxAmount = maxAmount,
                 sessionTotal = sessionTotal,
-                sourceGUID = source.sourceGUID,
+                sourceGUID = guid,
                 isLocalPlayer = source.isLocalPlayer,
                 isActionType = isAction,
+                deathRecapID = source.deathRecapID,
             }
+
+            -- Inline spell breakdown: splice this player's spells in right
+            -- after their row. Refetched every pass, so it updates live.
+            if state.expandedGUID and guid and not issecretvalue(guid)
+                and guid == state.expandedGUID then
+                expandFound = true
+                ns.AppendSpellRows(elements, state.sessionType, state.meterType,
+                    guid, source.totalAmount, source.classFilename)
+            end
+        end
+
+        -- Expanded player left the list (e.g. left group): collapse silently.
+        if state.expandedGUID and not expandFound then
+            state.expandedGUID = nil
         end
 
         dataProvider:InsertTable(elements)

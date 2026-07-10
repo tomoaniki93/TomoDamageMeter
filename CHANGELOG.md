@@ -1,5 +1,44 @@
 # Changelog
 
+## v1.6.0
+
+### Modules/DeathRecap.lua (new)
+- **New**: Death Recap window. Shows the last events before a player's death — spell icon, an HP%-remaining bar (green for heals, red for damage, brightest red on the fatal blow), a "-Xs SpellName" label, and the signed amount with overkill on the killing blow plus HP% remaining. Rows carry a real spell tooltip on hover (`SetSpellByID`). Opened by clicking a player in the **Deaths** category; optionally auto-pops on the local player's own death (`db.deathRecapAutoShow`, off by default). Sourced from `C_DeathRecap.GetRecapEvents` / `GetRecapMaxHealth` via the per-source `deathRecapID`, all secretvalue-guarded.
+
+### Modules/SpellBridge.lua
+- **New**: `ns.GetDeathRecap(recapID)` returns a processed, oldest-first event list (+ max health) from `C_DeathRecap`, every field secretvalue-guarded, with icon resolution and localized fallbacks (Heal / Melee / Unknown). `ns.FindLocalDeathRecap()` scans the Deaths sessions (Current then Overall) for the local player's most recent `deathRecapID` for the auto-popup.
+
+### Modules/DamageMeter.lua
+- **Changed**: Player elements now carry `deathRecapID`. In the **Deaths** category, clicking a player (either button) opens the Death Recap window instead of the inline/standalone spell breakdown (which is empty for deaths). Uses `deathRecapID` rather than the GUID so it works even if the source GUID is a secret value.
+
+### Config/ConfigUI.lua, Core/Database.lua
+- **New**: A "Modules" settings section with a toggle — **Death recap popup on death** (`deathRecapAutoShow`). New DB default (off). The module's event frame is unregistered on logout.
+
+### Locales/enUS.lua, Locales/frFR.lua
+- **New**: `DEATH_RECAP`, `DEATH_RECAP_NO_DATA`, `RECAP_HEAL`, `RECAP_MELEE`, `RECAP_UNKNOWN`, `SETTINGS_MODULES`, `SETTINGS_DEATH_RECAP_AUTO` (enUS is the fallback for all locales; frFR translated).
+
+### TomoDamageMeter.toc
+- Loads `Modules\DeathRecap.lua`. Version bumped to 1.6.0.
+
+## v1.5.0
+
+### Modules/DamageMeter.lua
+- **New**: Inline spell breakdown (Details-style). Left-clicking a player bar now expands that player's spells as indented sub-rows directly beneath their row, in place, instead of only opening the standalone window. One player is expanded at a time; left-clicking again (or another player) collapses/switches. The sub-rows are refetched on every refresh, so the breakdown updates live during combat. Works for whatever category the window is on — Damage, Healing (incl. per-healer spells), Actions.
+- **Changed**: Player-bar click handling is now split — **left-click** toggles the inline breakdown, **right-click** opens the standalone `SpellBreakdown` window (kept for its searchable player strip in full raids). Rows now `RegisterForClicks("LeftButtonUp", "RightButtonUp")`.
+- **New**: `state.expandedGUID` tracks the expanded player. `CollectData` splices the expanded player's spell rows in right after their player row (via `ns.AppendSpellRows`) and silently collapses if that player leaves the list.
+- **New**: Variable row heights. The linear view gains an element-extent calculator so spell sub-rows render a touch shorter than player rows (`SpellRowHeight()`); the fixed extent stays as a fallback. `UpdateSpellRow` renders each sub-row reusing the same widgets a player row uses (icon / bar / name / value columns) so the columns line up, with a left indent, spell icon, a dimmer class-tinted bar, and a rank prefix. An accent stripe (`groupAccent`) brackets the expanded player and its sub-rows into a visual group.
+- **New**: The pooled-frame icon geometry is fully reset in the player-row path so a frame that just served as a spell sub-row round-trips cleanly back to a spec-icon player row.
+
+### Core/Utils.lua
+- **New**: `ns.AppendSpellRows(elements, sessionType, meterType, guid, parentTotal, classFilename)` — appends a player's spells as `kind == "spell"` element-data into an element list. Pure data shaping over `ns.GetSpellBreakdown` (already-resolved plain numbers); sets `sessionTotal` to the player's own total so the reused `PopulateColumnValues` renders the pct column as each spell's share of that player. Falls back to summing spell totals when `parentTotal` is a secret value mid-combat. Carries the Midnight extras (pet caster, overkill, avoidable / killing-blow) through for the hover tooltip.
+- **Changed**: The player-bar hover tooltip footer now shows two hints — left-click to expand inline, right-click for the window.
+
+### Locales/enUS.lua, Locales/frFR.lua
+- **New**: `TIP_LEFT_EXPAND`, `TIP_RIGHT_WINDOW` (enUS is the fallback for all locales; frFR translated).
+
+### TomoDamageMeter.toc
+- Version bumped to 1.5.0.
+
 ## v1.4.0
 
 ### Modules/Skins.lua

@@ -355,6 +355,14 @@ local function CreateSettingsPanel()
             function(val) ns.db.showBarTooltips = val end)
         AddWidget(barTipCB, 24)
 
+        -- Modules
+        AddSection(L["SETTINGS_MODULES"])
+
+        local deathRecapCB = ns.Widgets.CreateCheckbox(parent, L["SETTINGS_DEATH_RECAP_AUTO"],
+            function() return ns.db.deathRecapAutoShow end,
+            function(val) ns.db.deathRecapAutoShow = val end)
+        AddWidget(deathRecapCB, 24)
+
         -- Categories
         AddSection(L["SETTINGS_CATEGORIES"])
 

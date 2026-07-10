@@ -7,7 +7,7 @@
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 1.4.0
+## Version: 1.6.0
 ## IconTexture: Interface\Icons\Inv12_apextalent_mage_firedup
 
 # Libraries
@@ -35,6 +35,7 @@ Core\Database.lua
 Modules\SpellBridge.lua
 Modules\SpellBreakdown.lua
 Modules\TargetBreakdown.lua
+Modules\DeathRecap.lua
 Modules\DamageMeter.lua
 
 Config\Widgets.lua

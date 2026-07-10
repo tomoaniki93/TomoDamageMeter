@@ -235,6 +235,71 @@ function ns.AnchorColumns(button)
 end
 
 ----------------------------------------------------------------------
+-- Inline spell sub-rows (expanded player in the main meter)
+----------------------------------------------------------------------
+-- Appends this player's spells as `kind == "spell"` element-data entries into
+-- an existing element list, right after their player row. Pure data shaping:
+-- ns.GetSpellBreakdown already returns fully-resolved plain numbers, so no
+-- secret-value handling is needed past the parent-total fallback. The columns
+-- reuse ns.PopulateColumnValues via totalAmount / amountPerSecond / sessionTotal,
+-- where sessionTotal = the player's own total so the pct column reads as the
+-- spell's share of that player (matching how a breakdown should look).
+function ns.AppendSpellRows(elements, sessionType, meterType, guid, parentTotal, classFilename)
+    local L = ns.L
+    local spells = ns.GetSpellBreakdown(sessionType, meterType, guid)
+
+    if not spells or #spells == 0 then
+        elements[#elements + 1] = {
+            kind = "spell",
+            isEmpty = true,
+            name = L["NO_DATA"],
+            classFilename = classFilename,
+        }
+        return
+    end
+
+    -- Parent total may be a secret value mid-combat; fall back to the sum of
+    -- the (already-resolved) spell totals so the pct column stays meaningful.
+    local ptotal = parentTotal
+    if ptotal == nil or issecretvalue(ptotal) then
+        ptotal = 0
+        for _, s in ipairs(spells) do ptotal = ptotal + (s.total or 0) end
+    end
+
+    local maxTotal = spells[1].total
+    local info = ns.TYPE_INFO[meterType]
+    local rateKey = info and info.key
+
+    for i, s in ipairs(spells) do
+        local dn = "|cff6a6a72" .. i .. ".|r " .. (s.name or "?")
+        if s.creatureName then
+            dn = dn .. "  |cff8a8a99(" .. s.creatureName .. ")|r"
+        end
+        elements[#elements + 1] = {
+            kind            = "spell",
+            classFilename   = classFilename,
+            name            = s.name,          -- tooltip title
+            displayName     = dn,              -- rendered label (rank + pet)
+            icon            = s.icon,
+            totalAmount     = s.total,
+            amountPerSecond = s.perSec,
+            sessionTotal    = ptotal,          -- pct column => share of player
+            maxAmount       = maxTotal,        -- bar scale within the group
+            isActionType    = false,
+            -- Tooltip extras (read by ns.BuildSpellTooltip):
+            total           = s.total,
+            perSec          = s.perSec,
+            pct             = s.pct,
+            rateKey         = rateKey,
+            creatureName    = s.creatureName,
+            overkill        = s.overkill,
+            isAvoidable     = s.isAvoidable,
+            isDeadly        = s.isDeadly,
+        }
+    end
+end
+
+----------------------------------------------------------------------
 -- Informative hover tooltips
 ----------------------------------------------------------------------
 -- Both builders are pure display helpers. They run only on hover (never on
@@ -310,7 +375,8 @@ function ns.BuildBarTooltip(owner, ed, meterType, sessionType)
             end
         end
         GT:AddLine(" ")
-        GT:AddLine(L["TIP_CLICK_BREAKDOWN"], 0.2, 1, 0.2)
+        GT:AddLine(L["TIP_LEFT_EXPAND"], 0.2, 1, 0.2)
+        GT:AddLine(L["TIP_RIGHT_WINDOW"], 0.45, 0.8, 0.45)
     end
 
     GT:Show()

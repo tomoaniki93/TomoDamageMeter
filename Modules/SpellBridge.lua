@@ -179,6 +179,108 @@ function ns.GetSpellBreakdownBySegment(sessionID, meterType, sourceGUID)
     return Finalize(sorted, grandTotal)
 end
 
+--- Returns a processed death-recap event list for a recapID (from the Deaths
+--- category's per-source deathRecapID field). Events are ordered oldest-first,
+--- so the last entry is the fatal blow. Every field is secretvalue-guarded.
+--- @param recapID number source.deathRecapID
+--- @return table|nil events, number maxHP
+function ns.GetDeathRecap(recapID)
+    if not recapID or (issecretvalue and issecretvalue(recapID)) or recapID <= 0 then
+        return nil, 0
+    end
+    if not C_DeathRecap or not C_DeathRecap.GetRecapEvents then
+        return nil, 0
+    end
+
+    local ok, raw = pcall(C_DeathRecap.GetRecapEvents, recapID)
+    if not ok or not raw or issecretvalue(raw) or #raw == 0 then
+        return nil, 0
+    end
+
+    local maxHP = 1
+    if C_DeathRecap.GetRecapMaxHealth then
+        local ok2, hp = pcall(C_DeathRecap.GetRecapMaxHealth, recapID)
+        if ok2 and type(hp) == "number" and hp > 0 then maxHP = hp end
+    end
+
+    local L = ns.L
+    -- API returns newest-first; reverse so the fatal blow is last.
+    local events = {}
+    for i = #raw, 1, -1 do
+        local ev = raw[i]
+        local evType = ev.event or ""
+        local isHeal = (evType == "SPELL_HEAL" or evType == "SPELL_PERIODIC_HEAL")
+
+        local spID = ev.spellId
+        if spID and issecretvalue(spID) then spID = nil end
+
+        local icon
+        if spID and spID > 0 then
+            icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(spID)
+        end
+        if not icon then icon = 135274 end -- melee-swing fallback
+
+        local spellName = ev.spellName
+        if not spellName or issecretvalue(spellName) or spellName == "" then
+            if isHeal then spellName = L["RECAP_HEAL"]
+            elseif evType == "SWING_DAMAGE" then spellName = L["RECAP_MELEE"]
+            else spellName = L["RECAP_UNKNOWN"] end
+        end
+
+        local amount = ev.amount
+        if amount == nil or issecretvalue(amount) then amount = 0 end
+
+        local curHP = ev.currentHP
+        if curHP == nil or issecretvalue(curHP) then curHP = 0 end
+
+        local overkill = ev.overkill
+        if overkill ~= nil and issecretvalue(overkill) then overkill = nil end
+
+        events[#events + 1] = {
+            spellID   = spID,
+            name      = spellName,
+            icon      = icon,
+            event     = evType,
+            isHeal    = isHeal,
+            amount    = amount,
+            overkill  = overkill,
+            currentHP = curHP,
+            timestamp = ev.timestamp,
+        }
+    end
+
+    return events, maxHP
+end
+
+--- Scans the Deaths sessions (Current then Overall) for the local player's most
+--- recent deathRecapID. Used by the death-recap auto-popup.
+--- @return number|nil recapID, string|nil name, string|nil classFilename
+function ns.FindLocalDeathRecap()
+    if not C_DamageMeter or not C_DamageMeter.GetCombatSessionFromType then return nil end
+    local Deaths = Enum.DamageMeterType.Deaths
+    local sessionTypes = {
+        Enum.DamageMeterSessionType.Current,
+        Enum.DamageMeterSessionType.Overall,
+    }
+    for _, st in ipairs(sessionTypes) do
+        local session = C_DamageMeter.GetCombatSessionFromType(st, Deaths)
+        if session and not issecretvalue(session) and session.combatSources then
+            for _, s in ipairs(session.combatSources) do
+                local isSelf = s.isLocalPlayer
+                if isSelf ~= nil and not issecretvalue(isSelf) and isSelf then
+                    local rid = s.deathRecapID
+                    if rid and not issecretvalue(rid) and rid > 0 then
+                        local name = s.name
+                        if name and issecretvalue(name) then name = nil end
+                        return rid, name, s.classFilename
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
 --- Stub: no external data to reset anymore
 function ns.ResetSpellData()
     -- No-op: C_DamageMeter handles its own data lifecycle
