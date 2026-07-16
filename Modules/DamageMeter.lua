@@ -1064,6 +1064,10 @@ function ns.CreateMeterWindow(cfg)
                     sourceGUID = selfSource.sourceGUID,
                     isLocalPlayer = true,
                     isActionType = isAction,
+                    -- Deaths category: without this, clicking the pinned self
+                    -- bar did nothing while the same row in the list opened
+                    -- the death recap.
+                    deathRecapID = selfSource.deathRecapID,
                 }
                 SetSelfBarShown(true)
                 UpdateButton(selfBar, selfBar._elementData)
@@ -1190,6 +1194,9 @@ function ns.CreateMeterWindow(cfg)
         end,
         GetMeterType = function() return state.meterType end,
         GetSessionType = function() return state.sessionType end,
+        -- Re-sync the header lock icon after cfg.locked was changed externally
+        -- (slash command, settings checkbox).
+        RefreshLockIcon = UpdateLockIcon,
         SetCombatAlpha = function(inCombat)
             local oocAlpha = ns.db and ns.db.oocAlpha or 1
             if inCombat then

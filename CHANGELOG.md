@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.6.1
+
+### Modules/DamageMeter.lua
+- **Fix**: The window interface now exposes `RefreshLockIcon` so external code (slash command, settings checkbox) can re-sync the header lock icon after changing `cfg.locked`.
+- **Fix**: The pinned self bar now carries `deathRecapID`; clicking it in the **Deaths** category opens the Death Recap window like any other row.
+
+### Core/Database.lua
+- **Fix**: `/tdm lock` now computes a single target state (from the first window) and applies it to every window, instead of toggling each independently — windows with mixed lock states no longer drift apart. The header lock icons are refreshed on toggle.
+- **Doc**: Refresh throttle comment aligned with the actual `REFRESH_INTERVAL` (150ms).
+
+### Config/ConfigUI.lua
+- **Fix**: The per-window **Locked** checkbox refreshes the header lock icon.
+
+### Core/Utils.lua
+- **Hardening**: `ns.FormatNumber` guards `nil` and secret values up front (returns a `"..."` placeholder) instead of falling through to `AbbreviateNumbers`, whose Lua-side arithmetic errors on secrets. The Actions column path (C-side `SetFormattedText`) is unaffected.
+
+### TomoDamageMeter.toc
+- Version bumped to 1.6.1.
+
 ## v1.6.0
 
 ### Modules/DeathRecap.lua (new)

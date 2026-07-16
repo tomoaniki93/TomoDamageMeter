@@ -32,8 +32,15 @@ local BREAKPOINTS_2DEC = {
 local OPTS_2DEC = { breakpointData = BREAKPOINTS_2DEC }
 
 function ns.FormatNumber(value, fmt)
+    -- Defensive guard: a secret value would otherwise fall through to
+    -- AbbreviateNumbers, whose Lua-side arithmetic errors on secrets.
+    -- Callers that can render secrets safely (C-side SetFormattedText)
+    -- don't go through here; anything else shows a placeholder.
+    if value == nil or issecretvalue(value) then
+        return "..."
+    end
     -- Sub-1000 values: handle explicitly for consistent precision
-    if not issecretvalue(value) and value < 1000 then
+    if value < 1000 then
         if fmt == "short" then
             return tostring(math.floor(value + 0.5))
         elseif fmt == "1dec" then

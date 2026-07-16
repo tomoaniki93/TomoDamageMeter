@@ -257,7 +257,7 @@ dmEventFrame:SetScript("OnEvent", function(self, event)
         for _, win in ipairs(ns.windows) do win.Refresh() end
     else
         -- DAMAGE_METER_COMBAT_SESSION_UPDATED / CURRENT_SESSION_UPDATED
-        -- → throttle à 250ms au lieu de chaque frame
+        -- → throttle à 150ms (REFRESH_INTERVAL) au lieu de chaque frame
         ThrottledRefresh()
     end
 end)
@@ -273,11 +273,14 @@ SlashCmdList["TDM"] = function(msg)
     if msg == "reset" then
         C_DamageMeter.ResetAllCombatSessions()
     elseif msg == "lock" then
+        -- Single target state for every window: avoids windows with mixed
+        -- lock states drifting further apart on each toggle.
+        local target = not (ns.windows[1] and ns.windows[1].cfg.locked)
         for _, win in ipairs(ns.windows) do
-            win.cfg.locked = not win.cfg.locked
+            win.cfg.locked = target
+            if win.RefreshLockIcon then win.RefreshLockIcon() end
         end
-        local locked = ns.windows[1] and ns.windows[1].cfg.locked
-        print(L["ADDON_PREFIX"] .. (locked and L["CMD_LOCKED"] or L["CMD_UNLOCKED"]))
+        print(L["ADDON_PREFIX"] .. (target and L["CMD_LOCKED"] or L["CMD_UNLOCKED"]))
     elseif msg == "toggle" then
         for _, win in ipairs(ns.windows) do
             win.frame:SetShown(not win.frame:IsShown())

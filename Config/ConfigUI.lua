@@ -515,6 +515,7 @@ local function CreateSettingsPanel()
                 local win = ns.windows[winIndex]
                 if not win then return end
                 win.cfg.locked = val
+                if win.RefreshLockIcon then win.RefreshLockIcon() end
             end)
         AddWidget(lockCB, 24)
 
