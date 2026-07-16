@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.6.2
+
+### Core/Utils.lua
+- **Fix (regression from 1.6.1)**: mid-combat values were displayed as `"..."` / `"(...)"` in every column. The secret-value guard added in 1.6.1 was wrong: under Midnight, `AbbreviateNumbers` is secret-tolerant (C-side) and its output renders fine through text setters — confirmed against EUI StandaloneDamageMeters, which passes secrets straight into `AbbreviateNumbers` with no guard. `ns.FormatNumber` now only skips the sub-1000 Lua formatting branch for secrets (Lua comparison/format would error) and routes them to `AbbreviateNumbers`, restoring the 1.6.0 display. The `nil` guard is kept (returns `"0"`).
+
 ## v1.6.1
 
 ### Modules/DamageMeter.lua

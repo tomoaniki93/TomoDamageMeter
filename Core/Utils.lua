@@ -32,15 +32,15 @@ local BREAKPOINTS_2DEC = {
 local OPTS_2DEC = { breakpointData = BREAKPOINTS_2DEC }
 
 function ns.FormatNumber(value, fmt)
-    -- Defensive guard: a secret value would otherwise fall through to
-    -- AbbreviateNumbers, whose Lua-side arithmetic errors on secrets.
-    -- Callers that can render secrets safely (C-side SetFormattedText)
-    -- don't go through here; anything else shows a placeholder.
-    if value == nil or issecretvalue(value) then
-        return "..."
-    end
-    -- Sub-1000 values: handle explicitly for consistent precision
-    if value < 1000 then
+    if value == nil then return "0" end
+    -- Secret values (mid-combat under Midnight) must NOT be intercepted:
+    -- AbbreviateNumbers is secret-tolerant (C-side) and returns a string
+    -- that C-side text setters render fine. Only the sub-1000 Lua branch
+    -- below is skipped, because comparing/formatting a secret in Lua errors.
+    -- (Same pattern as EUI's AbbrevNumber: no secret guard before
+    -- AbbreviateNumbers. A "..." placeholder here blanked all combat values
+    -- in v1.6.1.)
+    if not issecretvalue(value) and value < 1000 then
         if fmt == "short" then
             return tostring(math.floor(value + 0.5))
         elseif fmt == "1dec" then
