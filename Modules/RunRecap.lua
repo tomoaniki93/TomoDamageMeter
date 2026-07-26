@@ -45,7 +45,19 @@ local METRICS = {
     { field = "avoidable",  mtype = Enum.DamageMeterType.AvoidableDamageTaken, rate = false, labelKey = "RECAP_COL_AVOIDABLE", fmt = "1dec" },
 }
 
-local COL_CHARS = 7
+local COL_CHARS  = 7    -- widest numeric value, in characters
+local NAME_CHARS = 13   -- name column budget
+
+-- The window is sized from its columns, not the other way round. It used to be
+-- a fixed 470px while the columns scale with the font: at size 14 the five
+-- numeric columns ate the entire width and the name column was squeezed to
+-- nothing, so end-of-run recaps showed rows of numbers with no player names.
+local function ColumnWidth() return ns.ColWidth(COL_CHARS) end
+
+local function DesiredWidth()
+    return TEXT_PAD * 2 + ns.ColWidth(NAME_CHARS)
+         + #METRICS * (ColumnWidth() + 4)
+end
 
 local currentRun = nil
 local lastRun    = nil
@@ -337,11 +349,9 @@ local function EnsureWindow()
     frame._colHeader = colHeader
     frame._colButtons = {}
 
-    local xOff = -TEXT_PAD
     for i = #METRICS, 1, -1 do
         local metric = METRICS[i]
         local btn = CreateFrame("Button", nil, colHeader)
-        btn:SetPoint("RIGHT", colHeader, "RIGHT", xOff, 0)
         btn:SetHeight(COLHDR_HEIGHT)
 
         local fs = btn:CreateFontString(nil, "ARTWORK")
@@ -362,7 +372,6 @@ local function EnsureWindow()
         end)
 
         frame._colButtons[#frame._colButtons + 1] = btn
-        xOff = xOff - 4
     end
 
     local colSep = frame:CreateTexture(nil, "OVERLAY")
@@ -400,7 +409,6 @@ local function GetRow(index, parent, anchor)
         nameFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
         nameFS:SetJustifyH("LEFT")
         nameFS:SetWordWrap(false)
-        nameFS:SetPoint("LEFT", row, "LEFT", TEXT_PAD, ns.GetFontNudge())
         row._nameFS = nameFS
 
         row._values = {}
@@ -421,10 +429,26 @@ local function GetRow(index, parent, anchor)
     return row
 end
 
+-- Position the header buttons right-to-left. `_colButtons` was built in the
+-- same order, so index 1 is the rightmost. The previous version advanced the
+-- offset by a flat 4px instead of the column width, which stacked all five
+-- labels on top of each other in the top-right corner.
+local function LayoutHeaderColumns(frame)
+    local w = ColumnWidth()
+    local xOff = -TEXT_PAD
+    for i = 1, #frame._colButtons do
+        local btn = frame._colButtons[i]
+        btn:ClearAllPoints()
+        btn:SetWidth(w)
+        btn:SetPoint("RIGHT", frame._colHeader, "RIGHT", xOff, 0)
+        xOff = xOff - w - 4
+    end
+end
+
 -- Lay a row's numeric columns out right-to-left, measured against the active
 -- font so they cannot clip the way the breakdown columns used to.
-local function LayoutRowColumns(row, colButtons)
-    local w = ns.ColWidth(COL_CHARS)
+local function LayoutRowColumns(row)
+    local w = ColumnWidth()
     local xOff = -TEXT_PAD
     local last = nil
     for i = #METRICS, 1, -1 do
@@ -432,12 +456,11 @@ local function LayoutRowColumns(row, colButtons)
         fs:ClearAllPoints()
         fs:SetWidth(w)
         fs:SetPoint("RIGHT", row, "RIGHT", xOff, ns.GetFontNudge())
-        if colButtons and colButtons[#METRICS - i + 1] then
-            colButtons[#METRICS - i + 1]:SetWidth(w)
-        end
         xOff = xOff - w - 4
         last = fs
     end
+    row._nameFS:ClearAllPoints()
+    row._nameFS:SetPoint("LEFT", row, "LEFT", TEXT_PAD, ns.GetFontNudge())
     row._nameFS:SetPoint("RIGHT", last, "LEFT", -4, ns.GetFontNudge())
 end
 
@@ -447,6 +470,8 @@ function ns.ShowRunRecap(run)
 
     frame:SetBackdropColor(ns.BG[1], ns.BG[2], ns.BG[3], ns.db and ns.db.bgAlpha or ns.BG[4])
     frame:SetAlpha(ns.db and ns.db.breakdownAlpha or 1)
+    frame:SetWidth(DesiredWidth())
+    LayoutHeaderColumns(frame)
 
     for _, row in ipairs(rows) do row:Hide() end
 
@@ -483,7 +508,7 @@ function ns.ShowRunRecap(run)
     for i = 1, count do
         local p = players[i]
         local row = GetRow(i, frame, anchor)
-        LayoutRowColumns(row, frame._colButtons)
+        LayoutRowColumns(row)
 
         row._bg:SetVertexColor(0, 0, 0, (i % 2 == 0) and 0.18 or 0)
 

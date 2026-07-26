@@ -748,7 +748,10 @@ local function EnsureWindow()
         button._pctFS:SetText(string.format("%.1f%%", data.pct or 0))
         button._pctFS:SetTextColor(r, g, b)
 
-        button._totalFS:SetText(ns.FormatNumber(data.total or 0, "1dec"))
+        -- ACTIONS meters count events, not damage: interrupts read "5", not
+        -- "5.0". RATE_PRIMARY is false exactly for those types.
+        local totalFmt = ns.RATE_PRIMARY[currentMeterType] and "1dec" or "int"
+        button._totalFS:SetText(ns.FormatNumber(data.total or 0, totalFmt))
         ns.Tint(button._totalFS, "primary")
 
         if data.perSec and not issecretvalue(data.perSec) and data.perSec > 0 then

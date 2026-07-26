@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.0.6
+
+Fixes from a full in-game pass: two keystone runs, spell breakdowns and death recaps.
+
+### Modules/RunRecap.lua
+- **Fix (headers stacked)**: the five column labels were created with the offset advancing by a flat 4px instead of by the column width, so all of them piled into the top-right corner and rendered as one unreadable smear. Header positioning moved into `LayoutHeaderColumns`, which advances by the measured width and runs on every open.
+- **Fix (missing player names)**: the window was a fixed 470px while its columns scale with the font. At font size 14 the five numeric columns consumed the entire width and the name column collapsed to nothing — end-of-run recaps showed rows of numbers with no names at all. The window is now sized from its contents: a 13-character name budget plus the five columns, so it comes out at roughly 418px at font 10 and 544px at font 14.
+- Row name anchoring moved out of the creation path into the layout pass, so it follows a font change.
+
+### Core/Utils.lua
+- **Fix**: action-type values rendered with a trailing full stop — interrupts showed `8.` instead of `8`, which reads as a typo.
+
+### Modules/SpellBreakdown.lua
+- **Fix**: the breakdown total column always formatted as `1dec`, so interrupt counts displayed as `5.0`, `3.0`, `2.0`. ACTIONS meters count events rather than damage, so they now use `int`. `ns.RATE_PRIMARY` is false for exactly those types.
+
 ## v2.0.5
 
 ### Modules/DamageMeter.lua

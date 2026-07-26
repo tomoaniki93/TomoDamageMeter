@@ -208,7 +208,7 @@ function ns.PopulateColumnValues(button, elementData)
         -- totalAmount is a secret value during combat for action types.
         -- SetFormattedText is a C-side widget method: the formatting happens
         -- in C, not Lua, so it can accept secret values without taint.
-        button.actionFS:SetFormattedText("%.0f.", total)
+        button.actionFS:SetFormattedText("%.0f", total)
         ns.Tint(button.actionFS, "primary")
         button.actionFS:ClearAllPoints()
         button.actionFS:SetPoint("RIGHT", button.bar, "RIGHT", -6, ns.GetFontNudge())
