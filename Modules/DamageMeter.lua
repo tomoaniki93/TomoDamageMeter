@@ -64,10 +64,18 @@ function ns.CreateMeterWindow(cfg)
     -- Drag handling
     window:SetScript("OnDragStart", function(self)
         if cfg.locked then return end
+        -- Pull away = unhook. A head window is not docked to anything, so this
+        -- does nothing for it and its followers stay anchored — which is what
+        -- makes dragging the head move the whole chain.
+        if ns.SnapDetachFrame then ns.SnapDetachFrame(self) end
         self:StartMoving()
     end)
     window:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        if ns.SnapTryFrame and ns.SnapTryFrame(self) then
+            -- Docked: position is now expressed as an anchor, not coordinates.
+            return
+        end
         -- Save
         local left = self:GetLeft()
         local top = self:GetTop()
@@ -169,7 +177,7 @@ function ns.CreateMeterWindow(cfg)
     -- Combat timer (left/right of subheader, GUI-configurable)
     local timerFS = subHeader:CreateFontString(nil, "ARTWORK")
     timerFS:SetFont(ns.GetFont(), ns.BAR_FONT_SIZE, "OUTLINE")
-    timerFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+    ns.Tint(timerFS, "secondary")
 
     local function ApplyTimerPosition()
         local pos = (ns.db and ns.db.combatTimerPos) or "RIGHT"
@@ -187,7 +195,7 @@ function ns.CreateMeterWindow(cfg)
     -- Session text (centered)
     local sessionText = subHeader:CreateFontString(nil, "ARTWORK")
     sessionText:SetFont(ns.GetFont(), ns.BAR_FONT_SIZE, "OUTLINE")
-    sessionText:SetTextColor(unpack(ns.TEXT_SECONDARY))
+    ns.Tint(sessionText, "secondary")
     sessionText:SetPoint("CENTER", subHeader, "CENTER", 0, ns.GetFontNudge())
     sessionText:SetJustifyH("CENTER")
     sessionText:SetWordWrap(false)
@@ -200,11 +208,11 @@ function ns.CreateMeterWindow(cfg)
     end)
     subHeader:SetScript("OnLeave", function()
         subHeaderHL:Hide()
-        sessionText:SetTextColor(unpack(ns.TEXT_SECONDARY))
+        ns.Tint(sessionText, "secondary")
         if ns.inCombat then
-            timerFS:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+            ns.Tint(timerFS, "accent")
         else
-            timerFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+            ns.Tint(timerFS, "secondary")
         end
         HideTip()
     end)
@@ -252,7 +260,7 @@ function ns.CreateMeterWindow(cfg)
 
     local catText = catBtn:CreateFontString(nil, "ARTWORK")
     catText:SetFont(ns.GetFont(), 11, "OUTLINE")
-    catText:SetTextColor(unpack(ns.TEXT_SECONDARY))
+    ns.Tint(catText, "secondary")
     catText:SetPoint("LEFT", ns.TEXT_PAD, ns.GetFontNudge())
 
     local catHL = catBtn:CreateTexture(nil, "BACKGROUND")
@@ -260,7 +268,7 @@ function ns.CreateMeterWindow(cfg)
     catHL:SetAllPoints(); catHL:Hide()
 
     catBtn:SetScript("OnEnter", function() catHL:Show(); catText:SetTextColor(1, 1, 1); ShowTip(catBtn, L["TIP_CATEGORY"]) end)
-    catBtn:SetScript("OnLeave", function() catHL:Hide(); catText:SetTextColor(unpack(ns.TEXT_SECONDARY)); HideTip() end)
+    catBtn:SetScript("OnLeave", function() catHL:Hide(); ns.Tint(catText, "secondary"); HideTip() end)
 
     -- Chevron separator (texture)
     local sep = header:CreateTexture(nil, "ARTWORK")
@@ -331,7 +339,7 @@ function ns.CreateMeterWindow(cfg)
     -- Report button
     local reportBtn = MakeHeaderBtn(resetBtn, ns.TEX_REPORT)
     reportBtn:SetScript("OnClick", function()
-        local snap = ns.SnapshotReportData(state.meterType, state.sessionType)
+        local snap = ns.SnapshotReportData(state.meterType, state.sessionType, state.elements)
         if not snap then
             print(L["ADDON_PREFIX"] .. L["REPORT_NO_DATA"])
             return
@@ -443,7 +451,7 @@ function ns.CreateMeterWindow(cfg)
     actionStrip:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT")
 
     local stripBG = actionStrip:CreateTexture(nil, "BACKGROUND")
-    stripBG:SetTexture(ns.FLAT); stripBG:SetVertexColor(0.04, 0.08, 0.14, 0.60)
+    stripBG:SetTexture(ns.FLAT); ns.Surface(stripBG, 0.60)
     stripBG:SetAllPoints()
 
     local stripSep = actionStrip:CreateTexture(nil, "OVERLAY")
@@ -477,6 +485,9 @@ function ns.CreateMeterWindow(cfg)
         window:StopMovingOrSizing()
         cfg.width = window:GetWidth()
         cfg.height = window:GetHeight()
+        -- Followers inherit the new width through their anchors, but their
+        -- columns are laid out against it and need re-measuring.
+        if ns.SnapRefreshChain then ns.SnapRefreshChain(window) end
     end)
     resizeHandle:SetScript("OnEnter", function()
         gripTex:SetVertexColor(0.7, 0.7, 0.73, 0.8)
@@ -596,7 +607,11 @@ function ns.CreateMeterWindow(cfg)
 
         -- Name
         local nameFS = bar:CreateFontString(nil, "OVERLAY")
-        nameFS:SetFont(ns.GetFont(), ns.BAR_FONT_SIZE, "OUTLINE")
+        -- ns.GetFontSize(), not the ns.BAR_FONT_SIZE constant: the constant is
+        -- only the factory default, and a row born from it while the user runs
+        -- a different size never matched the rows RefreshFonts had already
+        -- corrected.
+        nameFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
         nameFS:SetJustifyH("LEFT")
         nameFS:SetWordWrap(false)
         nameFS:SetShadowOffset(1, -1)
@@ -606,7 +621,7 @@ function ns.CreateMeterWindow(cfg)
         -- Value columns
         local function MakeValueFS(parent)
             local fs = parent:CreateFontString(nil, "OVERLAY")
-            fs:SetFont(ns.GetFont(), ns.BAR_FONT_SIZE, "OUTLINE")
+            fs:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
             fs:SetJustifyH("RIGHT")
             fs:SetShadowOffset(1, -1)
             fs:SetShadowColor(0, 0, 0, 0.4)
@@ -806,14 +821,16 @@ function ns.CreateMeterWindow(cfg)
             button.nameFS:SetPoint("LEFT", button.bar, "LEFT", 6, ns.GetFontNudge())
             button.nameFS:SetPoint("RIGHT", button.bar, "RIGHT", -6, 0)
             button.nameFS:SetText(data.name or "")
-            button.nameFS:SetTextColor(unpack(ns.TEXT_MUTED))
+            ns.Tint(button.nameFS, "muted")
             return
         end
 
         -- Class-tinted, dimmer-than-player bar so sub-rows recede visually
         local cc = data.classFilename and RAID_CLASS_COLORS[data.classFilename]
-        local r, g, b = 0.5, 0.5, 0.5
-        if cc then r, g, b = cc.r, cc.g, cc.b end
+        -- Fill goes through ns.ClassColor so a light skin can darken it; the
+        -- name keeps the untouched class colour, since its black outline
+        -- already carries it against any background.
+        local r, g, b = ns.ClassColor(data.classFilename)
         button.bar:SetStatusBarColor(r, g, b, 1.0)
         local fill = button.bar:GetStatusBarTexture()
         fill:SetGradient("HORIZONTAL",
@@ -838,9 +855,25 @@ function ns.CreateMeterWindow(cfg)
         button.bar:SetMinMaxValues(0, data.maxAmount or 1)
         button.bar:SetValue(data.totalAmount or 0)
 
+        -- Fonts are re-applied here rather than trusted from creation time.
+        -- The ScrollBox pool grows during a fight and reassigns which frame
+        -- renders which row on every Flush/InsertTable, so a row could be drawn
+        -- one pass by a frame born at the default size and the next by one
+        -- RefreshFonts had already corrected — which read as the text pulsing
+        -- larger and smaller several times a second. Guarded, so SetFont only
+        -- fires when the row is actually out of date.
+        local wantFont, wantSize = ns.GetFont(), ns.GetFontSize()
+        if button._fontPath ~= wantFont or button._fontSize ~= wantSize then
+            button.nameFS:SetFont(wantFont, wantSize, "OUTLINE")
+            button.rateFS:SetFont(wantFont, wantSize, "OUTLINE")
+            button.totalFS:SetFont(wantFont, wantSize, "OUTLINE")
+            button.pctFS:SetFont(wantFont, wantSize, "OUTLINE")
+            button._fontPath, button._fontSize = wantFont, wantSize
+        end
+
         -- Spell name (rank prefix + optional pet attribution already folded in)
         button.nameFS:SetText(data.displayName or data.name or "?")
-        button.nameFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
+        ns.Tint(button.nameFS, "primary")
 
         -- Same column pipeline as player rows: rate / total / pct all line up.
         -- sessionTotal is set to the player's own total upstream, so the pct
@@ -880,8 +913,7 @@ function ns.CreateMeterWindow(cfg)
 
         -- Class color
         local color = RAID_CLASS_COLORS[elementData.classFilename]
-        local r, g, b = 0.5, 0.5, 0.5
-        if color then r, g, b = color.r, color.g, color.b end
+        local r, g, b = ns.ClassColor(elementData.classFilename)
         button.bar:SetStatusBarColor(r, g, b, 1.0)
 
         -- Live skin: swap the fill texture when the active skin/texture changed
@@ -912,6 +944,22 @@ function ns.CreateMeterWindow(cfg)
         button.bar:SetMinMaxValues(0, maxVal)
         button.bar:SetValue(elementData.totalAmount or 0)
 
+        -- Fonts are re-applied here rather than trusted from creation time.
+        -- The ScrollBox pool grows during a fight and reassigns which frame
+        -- renders which row on every Flush/InsertTable, so a row could be drawn
+        -- one pass by a frame born at the default size and the next by one
+        -- RefreshFonts had already corrected — which read as the text pulsing
+        -- larger and smaller several times a second. Guarded, so SetFont only
+        -- fires when the row is actually out of date.
+        local wantFont, wantSize = ns.GetFont(), ns.GetFontSize()
+        if button._fontPath ~= wantFont or button._fontSize ~= wantSize then
+            button.nameFS:SetFont(wantFont, wantSize, "OUTLINE")
+            button.rateFS:SetFont(wantFont, wantSize, "OUTLINE")
+            button.totalFS:SetFont(wantFont, wantSize, "OUTLINE")
+            button.pctFS:SetFont(wantFont, wantSize, "OUTLINE")
+            button._fontPath, button._fontSize = wantFont, wantSize
+        end
+
         -- Name
         button.nameFS:SetText(ns.db.stripRealm and ns.StripRealm(elementData.name) or elementData.name or "")
 
@@ -919,10 +967,10 @@ function ns.CreateMeterWindow(cfg)
         ns.PopulateColumnValues(button, elementData)
 
         -- Text colors
-        button.nameFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
-        button.rateFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
-        button.totalFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
-        button.pctFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
+        ns.Tint(button.nameFS, "primary")
+        ns.Tint(button.rateFS, "primary")
+        ns.Tint(button.totalFS, "primary")
+        ns.Tint(button.pctFS, "primary")
 
         -- Icon + bar anchoring
         button.bar:ClearAllPoints()
@@ -1039,6 +1087,10 @@ function ns.CreateMeterWindow(cfg)
             state.expandedGUID = nil
         end
 
+        -- Kept for consumers that run outside an event handler (the chat
+        -- report is a click handler, where a live query returns secrets).
+        state.elements = elements
+
         dataProvider:InsertTable(elements)
 
         -- Pinned self bar: locate the local player anywhere in the full list
@@ -1075,15 +1127,18 @@ function ns.CreateMeterWindow(cfg)
         end
     end
 
-    -- Throttled refresh
-    local refreshPending = false
+    -- Data pass. Deliberately synchronous.
+    --
+    -- This used to hop through C_Timer.After(0). That single deferral pushed
+    -- every C_DamageMeter read out of the DAMAGE_METER_* event handler, which is
+    -- the only context where the API returns readable values: from a timer
+    -- callback the same fields come back as secret values. That is what forced
+    -- percentages to render as "-", the chat report to bail out, and any
+    -- Lua-side aggregation (sorting, cross-pull comparison) to be impossible
+    -- mid-combat. Throttling now lives in Core/Database.lua, where it can drop
+    -- events instead of deferring them.
     function state.ScheduleRefresh()
-        if refreshPending then return end
-        refreshPending = true
-        C_Timer.After(0, function()
-            refreshPending = false
-            state.CollectData()
-        end)
+        state.CollectData()
     end
 
     ----------------------------------------------------------------------
@@ -1159,9 +1214,9 @@ function ns.CreateMeterWindow(cfg)
 
         timerFS:SetText(ns.FormatTimer(seconds))
         if ns.inCombat then
-            timerFS:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+            ns.Tint(timerFS, "accent")
         else
-            timerFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+            ns.Tint(timerFS, "secondary")
         end
     end
 
@@ -1205,7 +1260,19 @@ function ns.CreateMeterWindow(cfg)
                 window:SetAlpha(oocAlpha)
             end
         end,
+        SetResizeHandleShown = function(shown)
+            -- A docked window has one axis owned by the window it is docked
+            -- to, so the grip is hidden rather than left to fight the anchors.
+            resizeHandle:SetShown(shown and true or false)
+        end,
         SavePosition = function()
+            -- Docked windows keep their anchor in cfg.snap; overwriting the
+            -- absolute coordinates here would fight the restore pass.
+            if cfg.snap then
+                cfg.meterType = state.meterType
+                cfg.sessionType = state.sessionType
+                return
+            end
             local left = window:GetLeft()
             local top = window:GetTop()
             if left and top then
@@ -1264,6 +1331,8 @@ function ns.CreateMeterWindow(cfg)
         RefreshFonts = function()
             local fs = ns.GetFontSize()
             local font = ns.GetFont()
+            -- Rows still pooled but not currently rendered are corrected by the
+            -- guard in the update path on their next pass.
             local nudge = ns.GetFontNudge()
             for _, button in scrollBox:EnumerateFrames() do
                 if button.nameFS then
@@ -1271,6 +1340,7 @@ function ns.CreateMeterWindow(cfg)
                     button.rateFS:SetFont(font, fs, "OUTLINE")
                     button.totalFS:SetFont(font, fs, "OUTLINE")
                     button.pctFS:SetFont(font, fs, "OUTLINE")
+                    button._fontPath, button._fontSize = font, fs
                     local prevFS = ns.AnchorColumns(button)
                     button.nameFS:ClearAllPoints()
                     local pad = button.icon:IsShown() and 4 or 6
@@ -1288,6 +1358,7 @@ function ns.CreateMeterWindow(cfg)
                 selfBar.rateFS:SetFont(font, fs, "OUTLINE")
                 selfBar.totalFS:SetFont(font, fs, "OUTLINE")
                 selfBar.pctFS:SetFont(font, fs, "OUTLINE")
+                selfBar._fontPath, selfBar._fontSize = font, fs
                 local prevSelfFS = ns.AnchorColumns(selfBar)
                 selfBar.nameFS:ClearAllPoints()
                 local selfPad = selfBar.icon:IsShown() and 4 or 6

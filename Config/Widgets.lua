@@ -13,13 +13,13 @@ function ns.Widgets.CreateSlider(parent, label, min, max, step, getter, setter)
 
     local title = frame:CreateFontString(nil, "ARTWORK")
     title:SetFont(ns.GetFont(), 11, "OUTLINE")
-    title:SetTextColor(unpack(ns.TEXT_LABEL))
+    title:SetTextColor(0.75, 0.75, 0.78)
     title:SetPoint("TOPLEFT", 0, 0)
     title:SetText(label)
 
     local valueText = frame:CreateFontString(nil, "ARTWORK")
     valueText:SetFont(ns.GetFont(), 11, "OUTLINE")
-    valueText:SetTextColor(unpack(ns.TEXT_PRIMARY))
+    valueText:SetTextColor(1.00, 1.00, 1.00)
     valueText:SetPoint("TOPRIGHT", 0, 0)
 
     local slider = CreateFrame("Slider", nil, frame, "MinimalSliderTemplate")
@@ -60,7 +60,7 @@ function ns.Widgets.CreateCheckbox(parent, label, getter, setter)
 
     local title = frame:CreateFontString(nil, "ARTWORK")
     title:SetFont(ns.GetFont(), 11, "OUTLINE")
-    title:SetTextColor(unpack(ns.TEXT_LABEL))
+    title:SetTextColor(0.75, 0.75, 0.78)
     title:SetPoint("LEFT", btn, "RIGHT", 4, 0)
     title:SetText(label)
 
@@ -77,13 +77,23 @@ function ns.Widgets.CreateCheckbox(parent, label, getter, setter)
 end
 
 -- Dropdown button (simple text cycling)
+-- `options` accepts either a static array of { value, label [, fontPath] } or a
+-- function returning one. Passing a function keeps the list live: option sets
+-- that change after the panel is built (LibSharedMedia textures registered by
+-- addons loading later, meter types gated by category toggles) no longer need a
+-- panel rebuild to show up.
 function ns.Widgets.CreateDropdown(parent, label, options, getter, setter)
     local frame = CreateFrame("Frame", nil, parent)
     frame:SetHeight(30)
 
+    local function GetOptions()
+        if type(options) == "function" then return options() or {} end
+        return options
+    end
+
     local title = frame:CreateFontString(nil, "ARTWORK")
     title:SetFont(ns.GetFont(), 11, "OUTLINE")
-    title:SetTextColor(unpack(ns.TEXT_LABEL))
+    title:SetTextColor(0.75, 0.75, 0.78)
     title:SetPoint("LEFT", 0, 0)
     title:SetText(label)
 
@@ -98,12 +108,12 @@ function ns.Widgets.CreateDropdown(parent, label, options, getter, setter)
 
     local btnText = btn:CreateFontString(nil, "ARTWORK")
     btnText:SetFont(ns.GetFont(), 10, "OUTLINE")
-    btnText:SetTextColor(unpack(ns.TEXT_PRIMARY))
+    btnText:SetTextColor(1.00, 1.00, 1.00)
     btnText:SetPoint("CENTER")
 
     local function UpdateText()
         local current = getter()
-        for _, opt in ipairs(options) do
+        for _, opt in ipairs(GetOptions()) do
             if opt.value == current then
                 btnText:SetText(opt.label)
                 -- Apply font preview if option has a fontPath
@@ -118,13 +128,15 @@ function ns.Widgets.CreateDropdown(parent, label, options, getter, setter)
     UpdateText()
 
     btn:SetScript("OnClick", function()
+        local opts = GetOptions()
+        if #opts == 0 then return end
         local current = getter()
         local idx = 1
-        for i, opt in ipairs(options) do
+        for i, opt in ipairs(opts) do
             if opt.value == current then idx = i; break end
         end
-        local next = (idx % #options) + 1
-        setter(options[next].value)
+        local nextIdx = (idx % #opts) + 1
+        setter(opts[nextIdx].value)
         UpdateText()
     end)
 

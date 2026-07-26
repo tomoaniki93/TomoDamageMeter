@@ -88,8 +88,48 @@ local function MakeEntry(spell)
     return entry
 end
 
--- Shared finalizer: sort by total desc and stamp per-spell percentages.
+-- Sum two optional numbers, refusing to do arithmetic on a secret value.
+-- Returns nil when either side is unreadable, so the caller falls back to the
+-- "-" placeholder rather than erroring.
+local function AddNum(a, b)
+    if a == nil then return b end
+    if b == nil then return a end
+    if issecretvalue(a) or issecretvalue(b) then return nil end
+    return a + b
+end
+
+-- Fold entries that resolve to the same spell name into one row.
+--
+-- Several spellIDs can share a name: rank variants, trinket and embellishment
+-- procs, class effects with a hidden secondary ID. Listed side by side they
+-- read as a duplicate-row bug even though both lines are correct.
+--
+-- Pet / guardian attribution is part of the merge key on purpose: the same
+-- spell cast by two different guardians stays split, since telling those apart
+-- is exactly what the attribution is for.
+local function MergeByName(entries)
+    local byKey, out = {}, {}
+    for _, e in ipairs(entries) do
+        local key = (e.name or "?") .. "\0" .. (e.creatureName or "")
+        local hit = byKey[key]
+        if hit then
+            hit.total    = hit.total + e.total
+            hit.perSec   = AddNum(hit.perSec, e.perSec)
+            hit.overkill = AddNum(hit.overkill, e.overkill)
+            if e.isAvoidable then hit.isAvoidable = true end
+            if e.isDeadly then hit.isDeadly = true end
+            hit.mergedCount = (hit.mergedCount or 1) + 1
+        else
+            byKey[key] = e
+            out[#out + 1] = e
+        end
+    end
+    return out
+end
+
+-- Shared finalizer: merge homonyms, sort by total desc, stamp percentages.
 local function Finalize(sorted, grandTotal)
+    sorted = MergeByName(sorted)
     table.sort(sorted, function(a, b) return a.total > b.total end)
     for _, entry in ipairs(sorted) do
         entry.pct = grandTotal > 0 and (entry.total / grandTotal * 100) or 0
@@ -236,6 +276,11 @@ function ns.GetDeathRecap(recapID)
         local overkill = ev.overkill
         if overkill ~= nil and issecretvalue(overkill) then overkill = nil end
 
+        -- Timestamps were the one field passing through unguarded. DeathRecap
+        -- subtracts them, so a secret value reached Lua arithmetic and errored.
+        local ts = ev.timestamp
+        if ts ~= nil and issecretvalue(ts) then ts = nil end
+
         events[#events + 1] = {
             spellID   = spID,
             name      = spellName,
@@ -245,7 +290,7 @@ function ns.GetDeathRecap(recapID)
             amount    = amount,
             overkill  = overkill,
             currentHP = curHP,
-            timestamp = ev.timestamp,
+            timestamp = ts,
         }
     end
 

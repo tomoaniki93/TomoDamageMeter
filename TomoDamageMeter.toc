@@ -1,14 +1,24 @@
-## Interface: 120007, 120005
+## Interface: 120100, 120007
 ## 
 ## Title: |cffCC44FFTomo|r|cffFFFFFFDamageMeter|r
 ## Notes: Standalone Damage Meter addon.
+## Notes-frFR: Compteur de dégâts autonome.
+## Notes-deDE: Eigenständiges Schadensmesser-Addon.
+## Notes-esES: Medidor de daño independiente.
+## Notes-itIT: Misuratore di danni autonomo.
+## Notes-ptBR: Medidor de dano independente.
+## Notes-ruRU: Автономный аддон для подсчёта урона.
+## Notes-zhCN: 独立伤害统计插件。
+## Notes-zhTW: 獨立傷害統計插件。
 ## Category: |cffCC44FFTomo|r|cffFFFFFFSuite|r
 ## 
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 1.6.2
+## Version: 2.0.5
 ## IconTexture: Interface\Icons\Inv12_apextalent_mage_firedup
+## X-Curse-Project-ID: 1483230
+## X-License: All Rights Reserved (bundled libraries keep their own — see THIRD-PARTY-LICENSES.md)
 
 # Libraries
 Libs\LibStub\LibStub.lua
@@ -37,6 +47,8 @@ Modules\SpellBreakdown.lua
 Modules\TargetBreakdown.lua
 Modules\DeathRecap.lua
 Modules\DamageMeter.lua
+Modules\RunRecap.lua
+Modules\Snap.lua
 
 Config\Widgets.lua
 Config\ConfigUI.lua

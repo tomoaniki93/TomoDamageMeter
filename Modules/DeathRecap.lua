@@ -79,13 +79,13 @@ local function EnsureWindow()
 
     local titleFS = header:CreateFontString(nil, "ARTWORK")
     titleFS:SetFont(ns.GetFont(), 12, "OUTLINE")
-    titleFS:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+    ns.Tint(titleFS, "accent")
     titleFS:SetPoint("LEFT", icon, "RIGHT", 6, ns.GetFontNudge())
     titleFS:SetText(L["DEATH_RECAP"])
 
     local nameFS = header:CreateFontString(nil, "ARTWORK")
     nameFS:SetFont(ns.GetFont(), 11, "OUTLINE")
-    nameFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+    ns.Tint(nameFS, "secondary")
     nameFS:SetPoint("LEFT", titleFS, "RIGHT", 8, 0)
     nameFS:SetWordWrap(false)
     frame._nameFS = nameFS
@@ -105,7 +105,7 @@ local function EnsureWindow()
     -- No-data label
     local noDataFS = frame:CreateFontString(nil, "ARTWORK")
     noDataFS:SetFont(ns.GetFont(), 11, "OUTLINE")
-    noDataFS:SetTextColor(unpack(ns.TEXT_MUTED))
+    ns.Tint(noDataFS, "muted")
     noDataFS:SetPoint("TOP", headerSep, "BOTTOM", 0, -20)
     noDataFS:SetText(L["DEATH_RECAP_NO_DATA"])
     noDataFS:Hide()
@@ -195,7 +195,10 @@ local function Populate(frame, recapID)
     local total = #events
     local count = math.min(MAX_ROWS, total)
     local startIdx = total - count -- keep the most recent (pre-death) events
-    local deathTime = events[total].timestamp or GetTime()
+    -- May be nil: timestamps are secretvalue-guarded upstream and can be
+    -- dropped. Rows then fall back to a plain spell label instead of doing
+    -- arithmetic on a missing value.
+    local deathTime = events[total].timestamp
 
     local stride = ROW_HEIGHT + ROW_SPACING
     local yTop = -(HEADER_HEIGHT + BORDER_SIZE + 1)
@@ -224,10 +227,14 @@ local function Populate(frame, recapID)
         local fill = row._bar:GetStatusBarTexture()
         if fill then fill:SetAlpha(ns.BAR_ALPHA) end
 
-        -- Label: time-before-death + spell name
-        local td = deathTime - (ev.timestamp or deathTime)
-        row._label:SetText(string.format("-%.1fs  ", td) .. (ev.name or "?"))
-        row._label:SetTextColor(unpack(ns.TEXT_PRIMARY))
+        -- Label: time-before-death + spell name (the delta is dropped when
+        -- either timestamp is unavailable).
+        local spellLabel = ev.name or "?"
+        if deathTime and ev.timestamp then
+            spellLabel = string.format("-%.1fs  ", deathTime - ev.timestamp) .. spellLabel
+        end
+        row._label:SetText(spellLabel)
+        ns.Tint(row._label, "primary")
 
         -- Amount: signed value, overkill on the fatal blow, HP% remaining
         local amtStr
@@ -242,7 +249,7 @@ local function Populate(frame, recapID)
         else
             row._amount:SetText(amtStr .. pctStr)
         end
-        row._amount:SetTextColor(unpack(ns.TEXT_PRIMARY))
+        ns.Tint(row._amount, "primary")
 
         row._spellID = ev.spellID
         row:ClearAllPoints()
@@ -272,7 +279,7 @@ function ns.ShowDeathRecap(recapID, playerName, classFilename)
         frame._nameFS:SetTextColor(cc.r, cc.g, cc.b)
     else
         frame._nameFS:SetText(name or "")
-        frame._nameFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+        ns.Tint(frame._nameFS, "secondary")
     end
 
     Populate(frame, recapID)

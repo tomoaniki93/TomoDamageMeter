@@ -31,6 +31,28 @@ local BREAKPOINTS_2DEC = {
 }
 local OPTS_2DEC = { breakpointData = BREAKPOINTS_2DEC }
 
+-- 3-decimal. Keeps every significant digit of a 5-figure thousands value while
+-- still rolling the unit over: 16,156,000 reads "16.156M" rather than the
+-- "16156 K" AbbreviateLargeNumbers produces, which pins the unit at K forever
+-- and just lets the number grow. Same shape as the tables above:
+-- significandDivisor = breakpoint / fractionDivisor.
+local BREAKPOINTS_3DEC = {
+    { breakpoint = 1000000000, significandDivisor = 1000000, fractionDivisor = 1000, abbreviation = "B", abbreviationIsGlobal = false },
+    { breakpoint = 1000000,    significandDivisor = 1000,    fractionDivisor = 1000, abbreviation = "M", abbreviationIsGlobal = false },
+    { breakpoint = 1000,       significandDivisor = 1,       fractionDivisor = 1000, abbreviation = "K", abbreviationIsGlobal = false },
+    { breakpoint = 1,          significandDivisor = 0.001,   fractionDivisor = 1000, abbreviation = "",  abbreviationIsGlobal = false },
+}
+local OPTS_3DEC = { breakpointData = BREAKPOINTS_3DEC }
+
+-- "full" = no abbreviation at all. Routed through AbbreviateNumbers with a
+-- single pass-through breakpoint instead of AbbreviateLargeNumbers, which does
+-- its comparisons in Lua and therefore errors on a secret value. Since "full"
+-- is the fmt seeded for legacy DB rows, that path was reachable in normal play.
+local BREAKPOINTS_FULL = {
+    { breakpoint = 0, significandDivisor = 1, fractionDivisor = 1, abbreviation = "", abbreviationIsGlobal = false },
+}
+local OPTS_FULL = { breakpointData = BREAKPOINTS_FULL }
+
 function ns.FormatNumber(value, fmt)
     if value == nil then return "0" end
     -- Secret values (mid-combat under Midnight) must NOT be intercepted:
@@ -47,8 +69,10 @@ function ns.FormatNumber(value, fmt)
             return string.format("%.1f", value)
         elseif fmt == "2dec" then
             return string.format("%.2f", value)
+        elseif fmt == "3dec" then
+            return string.format("%.3f", value)
         else -- "full"
-            return string.format("%.1f", value)
+            return string.format("%.0f", value)
         end
     end
     if fmt == "short" then
@@ -57,8 +81,10 @@ function ns.FormatNumber(value, fmt)
         return AbbreviateNumbers(value, OPTS_1DEC)
     elseif fmt == "2dec" then
         return AbbreviateNumbers(value, OPTS_2DEC)
+    elseif fmt == "3dec" then
+        return AbbreviateNumbers(value, OPTS_3DEC)
     else
-        return AbbreviateLargeNumbers(value)
+        return AbbreviateNumbers(value, OPTS_FULL)
     end
 end
 
@@ -70,7 +96,10 @@ local FORMAT_CHARS = {
     short = 4,
     ["1dec"] = 6,
     ["2dec"] = 8,
-    full  = 7,
+    ["3dec"] = 8,   -- "16.156M"
+    -- "full" prints the unabbreviated number, so it needs room for a raw
+    -- 9-10 digit total, not the 7 chars an abbreviated one takes.
+    full  = 11,
     int   = 4,
     dec   = 6,
 }
@@ -104,6 +133,16 @@ local COL_PAD = 4
 
 local function ColPixelWidth(chars, fontSize)
     return math.ceil(chars * GetCharWidth(fontSize)) + COL_PAD
+end
+
+-- Exposed so the breakdown windows size their columns the same way the main
+-- meter does. They used hard-coded pixel constants while rendering with the
+-- user's font size, so anything above the default clipped: ranks past "9."
+-- collapsed to an ellipsis and two-digit percentages were cut off.
+-- @param chars number widest expected content, in characters
+-- @param fontSize number|nil defaults to the configured bar font size
+function ns.ColWidth(chars, fontSize)
+    return ColPixelWidth(chars, fontSize or ns.GetFontSize())
 end
 
 ----------------------------------------------------------------------
@@ -170,7 +209,7 @@ function ns.PopulateColumnValues(button, elementData)
         -- SetFormattedText is a C-side widget method: the formatting happens
         -- in C, not Lua, so it can accept secret values without taint.
         button.actionFS:SetFormattedText("%.0f.", total)
-        button.actionFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
+        ns.Tint(button.actionFS, "primary")
         button.actionFS:ClearAllPoints()
         button.actionFS:SetPoint("RIGHT", button.bar, "RIGHT", -6, ns.GetFontNudge())
         button.actionFS:Show()
@@ -436,17 +475,12 @@ end
 -- Report to chat: data snapshot
 ----------------------------------------------------------------------
 
-function ns.SnapshotReportData(meterType, sessionType)
+-- @param elements table|nil the window's last collected rows. Preferred source:
+--        those were read inside a DAMAGE_METER_* handler, so their values are
+--        plain numbers even mid-combat. The report button is a click handler,
+--        where a fresh query comes back secret and the whole report bails out.
+function ns.SnapshotReportData(meterType, sessionType, elements)
     local L = ns.L
-    local session = C_DamageMeter.GetCombatSessionFromType(sessionType, meterType)
-    if not session or issecretvalue(session) then return nil end
-    local sources = session.combatSources
-    if not sources or #sources == 0 then return nil end
-
-    local first = sources[1]
-    if issecretvalue(first.name) or issecretvalue(first.totalAmount) then
-        return nil
-    end
 
     local info = ns.TYPE_INFO[meterType]
     local typeName = info and L[info.key] or "Unknown"
@@ -456,16 +490,40 @@ function ns.SnapshotReportData(meterType, sessionType)
 
     local isRate = ns.RATE_PRIMARY[meterType]
     local lines = {}
-    for i, source in ipairs(sources) do
-        if issecretvalue(source.name) or issecretvalue(source.totalAmount) then
-            break
-        end
-        local name = ns.StripRealm(source.name) or "Unknown"
-        local value = isRate and source.amountPerSecond or source.totalAmount
-        local formatted = ns.FormatNumber(value, "1dec")
-        lines[#lines + 1] = i .. ". " .. formatted .. "  " .. name
+
+    local function AddRow(name, value)
+        if name == nil or issecretvalue(name) then return false end
+        if value == nil or issecretvalue(value) then return false end
+        local rank = #lines + 1
+        lines[rank] = rank .. ". " .. ns.FormatNumber(value, "1dec")
+            .. "  " .. (ns.StripRealm(name) or "Unknown")
+        return true
     end
 
+    -- Preferred path: captured rows.
+    if elements then
+        for _, ed in ipairs(elements) do
+            if ed.kind ~= "spell" then
+                local value = isRate and ed.amountPerSecond or ed.totalAmount
+                if not AddRow(ed.name, value) then break end
+            end
+        end
+    end
+
+    -- Fallback: live query. Fine out of combat, and covers the case where the
+    -- window has not collected anything yet.
+    if #lines == 0 then
+        local session = C_DamageMeter.GetCombatSessionFromType(sessionType, meterType)
+        if not session or issecretvalue(session) then return nil end
+        local sources = session.combatSources
+        if not sources or #sources == 0 then return nil end
+        for _, source in ipairs(sources) do
+            local value = isRate and source.amountPerSecond or source.totalAmount
+            if not AddRow(source.name, value) then break end
+        end
+    end
+
+    if #lines == 0 then return nil end
     return { header = header, lines = lines }
 end
 

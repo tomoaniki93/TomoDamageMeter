@@ -36,13 +36,18 @@ local function CreateSettingsPanel()
         edgeFile = ns.FLAT,
         edgeSize = 1,
     })
-    frame:SetBackdropColor(0.00, 0.00, 0.00, 0.88)
+    -- Deliberately NOT skinned. The settings panel is a tool, not a HUD
+    -- element: it has to stay legible whatever preset is active, and a preset
+    -- tuned for readability over a game world is not automatically readable as
+    -- a dense form. It keeps a fixed dark palette and borrows only the accent,
+    -- corrected below when the skin's own accent is too dark to sit on it.
+    frame:SetBackdropColor(0.00, 0.00, 0.00, 0.92)
     frame:SetBackdropBorderColor(ns.BORDER_COLOR[1], ns.BORDER_COLOR[2], ns.BORDER_COLOR[3], ns.BORDER_COLOR[4])
 
     -- Title
     local title = frame:CreateFontString(nil, "ARTWORK")
     title:SetFont(ns.GetFont(), 13, "OUTLINE")
-    title:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+    title:SetTextColor(ns.PanelAccent())
     title:SetPoint("TOPLEFT", 12, -10)
     title:SetText(L["SETTINGS_TITLE"])
 
@@ -100,12 +105,45 @@ local function CreateSettingsPanel()
     local tabContents = {}
     local activeTab = nil
 
-    local function SetActiveTab(index)
-        if activeTab == index then return end
+    -- Persistent state. Tabs, content frames and every widget inside them are
+    -- built exactly once and reused: WoW frames cannot be destroyed, so the old
+    -- "hide everything, wipe the tables, recreate from scratch" rebuild leaked a
+    -- full panel's worth of frames on every open / skin change / category toggle.
+    local tabCount = 0        -- tabs currently in use (1 = General, then windows)
+    local contentBuilt = {}   -- index -> true once its widgets exist
+    local refreshables = {}   -- widgets exposing :Refresh(), re-read on open
+    local accentTexts = {}    -- FontStrings tinted with the accent colour
+
+    local function RegisterAccentText(fs)
+        accentTexts[#accentTexts + 1] = fs
+        return fs
+    end
+
+    -- Re-read every widget's value from the DB and re-tint accent-driven text.
+    -- Replaces the old rebuild for "the data changed" cases.
+    local function RefreshWidgets()
+        for _, w in ipairs(refreshables) do
+            if w.Refresh then w.Refresh() end
+        end
+        for _, fs in ipairs(accentTexts) do
+            fs:SetTextColor(ns.PanelAccent())
+        end
+        if activeTab and tabs[activeTab] then
+            local pr, pg, pb = ns.PanelAccent(); tabs[activeTab].bg:SetVertexColor(pr * 0.3, pg * 0.3, pb * 0.3, 0.90)
+            tabs[activeTab].text:SetTextColor(ns.PanelAccent())
+        end
+    end
+
+    local buildContent  -- forward declaration (defined once the builders exist)
+
+    local function SetActiveTab(index, force)
+        if activeTab == index and not force then return end
+        -- Content is built on first activation, then reused forever.
+        if buildContent then buildContent(index) end
         -- Deactivate previous
         if activeTab and tabs[activeTab] then
             tabs[activeTab].bg:SetVertexColor(0.05, 0.08, 0.14, 0.70)
-            tabs[activeTab].text:SetTextColor(unpack(ns.TEXT_MUTED))
+            tabs[activeTab].text:SetTextColor(0.40, 0.40, 0.43)
         end
         if activeTab and tabContents[activeTab] then
             tabContents[activeTab]:Hide()
@@ -113,8 +151,8 @@ local function CreateSettingsPanel()
         -- Activate new
         activeTab = index
         if tabs[index] then
-            tabs[index].bg:SetVertexColor(ns.ACCENT[1] * 0.3, ns.ACCENT[2] * 0.3, ns.ACCENT[3] * 0.3, 0.90)
-            tabs[index].text:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+            local pr, pg, pb = ns.PanelAccent(); tabs[index].bg:SetVertexColor(pr * 0.3, pg * 0.3, pb * 0.3, 0.90)
+            tabs[index].text:SetTextColor(ns.PanelAccent())
         end
         if tabContents[index] then
             scrollFrame:SetScrollChild(tabContents[index])
@@ -135,7 +173,7 @@ local function CreateSettingsPanel()
 
         local text = tab:CreateFontString(nil, "ARTWORK")
         text:SetFont(ns.GetFont(), 10, "OUTLINE")
-        text:SetTextColor(unpack(ns.TEXT_MUTED))
+        text:SetTextColor(0.40, 0.40, 0.43)
         text:SetWordWrap(false)
         text:SetNonSpaceWrap(false)
         text:SetText(labelText)
@@ -174,15 +212,17 @@ local function CreateSettingsPanel()
             widget:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -yOff)
             widget:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
             yOff = yOff + (height or 50) + 6
+            refreshables[#refreshables + 1] = widget
         end
 
         local function AddSection(text)
             local fs = parent:CreateFontString(nil, "ARTWORK")
             fs:SetFont(ns.GetFont(), 11, "OUTLINE")
-            fs:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+            fs:SetTextColor(ns.PanelAccent())
             fs:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -yOff)
             fs:SetText(text)
             yOff = yOff + 18
+            RegisterAccentText(fs)
         end
 
         -- Appearance
@@ -194,15 +234,15 @@ local function CreateSettingsPanel()
             function() return ns.db.skin or "DARK" end,
             function(val)
                 ns.ApplySkin(val, true)
-                if settingsFrame and settingsFrame.RebuildTabs then
-                    settingsFrame.RebuildTabs()
+                if settingsFrame and settingsFrame.Refresh then
+                    settingsFrame.Refresh()
                 end
             end)
         AddWidget(skinDD, 30)
 
         -- Bar texture (every statusbar registered in LibSharedMedia)
         local texDD = ns.Widgets.CreateDropdown(parent, L["SETTINGS_BAR_TEXTURE"],
-            ns.GetTextureList(),
+            ns.GetTextureList,   -- live: LSM textures can be registered after us
             function() return ns.db.barTexture or ns.TEX_FLAT end,
             function(val)
                 ns.db.barTexture = val
@@ -294,6 +334,92 @@ local function CreateSettingsPanel()
             end)
         AddWidget(breakdownSlider, 50)
 
+        local snapCB = ns.Widgets.CreateCheckbox(parent, L["SETTINGS_SNAP"],
+            function() return ns.db.snapEnabled ~= false end,
+            function(val) ns.db.snapEnabled = val and true or false end)
+        AddWidget(snapCB, 24)
+
+        local recapCB = ns.Widgets.CreateCheckbox(parent, L["SETTINGS_RUN_RECAP_AUTO"],
+            function() return ns.db.runRecapAutoShow ~= false end,
+            function(val) ns.db.runRecapAutoShow = val and true or false end)
+        AddWidget(recapCB, 24)
+
+        -- Columns
+        AddSection(L["SETTINGS_COLUMNS"])
+
+        -- Column config has existed in the DB (ns.db.columns / ns.FORMAT_OPTIONS)
+        -- and in the renderer since the start, but was never exposed. Each column
+        -- gets a visibility toggle and a format picker; both re-anchor the live
+        -- rows, since AnchorColumns derives its widths from the active format.
+        local COLUMN_LABELS = {
+            rate  = "SETTINGS_COL_RATE",
+            total = "SETTINGS_COL_TOTAL",
+            pct   = "SETTINGS_COL_PCT",
+        }
+        local FORMAT_LABELS = {
+            short  = "FMT_COMPACT",
+            ["1dec"] = "FMT_1DEC",
+            ["2dec"] = "FMT_2DEC",
+            ["3dec"] = "FMT_3DEC",
+            full   = "FMT_REGULAR",
+            int    = "FMT_INT",
+            dec    = "FMT_DEC",
+        }
+
+        local function GetColumn(key)
+            if not ns.db.columns then return nil end
+            for _, col in ipairs(ns.db.columns) do
+                if col.key == key then return col end
+            end
+            return nil
+        end
+
+        local function ApplyColumnChange()
+            for _, win in ipairs(ns.windows) do
+                if win.RefreshFonts then win.RefreshFonts() end
+                win.Refresh()
+            end
+        end
+
+        for _, colKey in ipairs({ "rate", "total", "pct" }) do
+            local labelKey = COLUMN_LABELS[colKey]
+            local colLabel = L[labelKey] or labelKey
+
+            local showCB = ns.Widgets.CreateCheckbox(parent, colLabel,
+                function()
+                    local col = GetColumn(colKey)
+                    return col and col.show or false
+                end,
+                function(val)
+                    local col = GetColumn(colKey)
+                    if not col then return end
+                    col.show = val and true or false
+                    ApplyColumnChange()
+                end)
+            AddWidget(showCB, 24)
+
+            local fmtDD = ns.Widgets.CreateDropdown(parent, L["SETTINGS_FORMAT"] or colLabel,
+                function()
+                    local out = {}
+                    for _, fmt in ipairs(ns.FORMAT_OPTIONS[colKey] or {}) do
+                        local lk = FORMAT_LABELS[fmt]
+                        out[#out + 1] = { value = fmt, label = (lk and L[lk]) or fmt }
+                    end
+                    return out
+                end,
+                function()
+                    local col = GetColumn(colKey)
+                    return col and col.fmt or "1dec"
+                end,
+                function(val)
+                    local col = GetColumn(colKey)
+                    if not col then return end
+                    col.fmt = val
+                    ApplyColumnChange()
+                end)
+            AddWidget(fmtDD, 30)
+        end
+
         -- General
         AddSection(L["SETTINGS_GENERAL"])
 
@@ -383,9 +509,9 @@ local function CreateSettingsPanel()
                         end
                         if enabledCount <= 1 then
                             print(L["ADDON_PREFIX"] .. L["SETTINGS_CATEGORIES_MIN"])
-                            -- Rebuild to reset checkbox visual state
-                            if settingsFrame and settingsFrame.RebuildTabs then
-                                settingsFrame.RebuildTabs()
+                            -- Re-read widget values to snap the checkbox back.
+                            if settingsFrame and settingsFrame.Refresh then
+                                settingsFrame.Refresh()
                             end
                             return
                         end
@@ -394,9 +520,10 @@ local function CreateSettingsPanel()
                         ns.db.disabledCategories[cat.name] = nil
                     end
                     ns.EnforceEnabledTypes()
-                    -- Rebuild tabs to refresh dropdowns and checkbox states
-                    if settingsFrame and settingsFrame.RebuildTabs then
-                        settingsFrame.RebuildTabs()
+                    -- Meter-type dropdowns resolve their options lazily, so a
+                    -- value refresh + tab relabel is enough here.
+                    if settingsFrame and settingsFrame.Refresh then
+                        settingsFrame.Refresh()
                     end
                 end)
             AddWidget(cb, 24)
@@ -440,33 +567,37 @@ local function CreateSettingsPanel()
             widget:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -yOff)
             widget:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
             yOff = yOff + (height or 50) + 6
+            refreshables[#refreshables + 1] = widget
         end
 
         local function AddSection(text)
             local fs = parent:CreateFontString(nil, "ARTWORK")
             fs:SetFont(ns.GetFont(), 11, "OUTLINE")
-            fs:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+            fs:SetTextColor(ns.PanelAccent())
             fs:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -yOff)
             fs:SetText(text)
             yOff = yOff + 18
+            RegisterAccentText(fs)
         end
 
         AddSection(string.format(L["SETTINGS_TAB_WINDOW"], winIndex))
 
-        -- Meter Type dropdown
-        local meterOptions = {}
-        for catIdx, cat in ipairs(ns.METER_CATEGORIES) do
-            if ns.IsCategoryEnabled(catIdx) then
-                for _, t in ipairs(cat.types) do
-                    meterOptions[#meterOptions + 1] = {
-                        value = t.type,
-                        label = L[t.key] or t.key,
-                    }
+        -- Meter Type dropdown. Options are resolved on each click so that
+        -- enabling / disabling a category is reflected immediately, without
+        -- rebuilding the panel.
+        local function MeterOptions()
+            local out = {}
+            for catIdx, cat in ipairs(ns.METER_CATEGORIES) do
+                if ns.IsCategoryEnabled(catIdx) then
+                    for _, t in ipairs(cat.types) do
+                        out[#out + 1] = { value = t.type, label = L[t.key] or t.key }
+                    end
                 end
             end
+            return out
         end
         local meterDD = ns.Widgets.CreateDropdown(parent, L["SETTINGS_METER_TYPE"],
-            meterOptions,
+            MeterOptions,
             function()
                 local win = ns.windows[winIndex]
                 return win and win.GetMeterType() or Enum.DamageMeterType.Dps
@@ -524,42 +655,48 @@ local function CreateSettingsPanel()
     end
 
     ----------------------------------------------------------------------
-    -- Rebuild Tabs
+    -- Tab layout (pooled — nothing is ever destroyed and recreated)
     ----------------------------------------------------------------------
 
-    local function RebuildTabs()
-        -- Clear existing tabs and content
-        for _, tab in ipairs(tabs) do
-            tab:Hide()
+    -- Build the widgets of tab `index` the first time it is shown. Tab 1 is
+    -- always General; tab i+1 always maps to window i, so the closures inside
+    -- BuildWindowContent stay valid for the panel's whole lifetime.
+    function buildContent(index)
+        if contentBuilt[index] then return end
+        local content = tabContents[index]
+        if not content then return end
+        contentBuilt[index] = true
+        if index == 1 then
+            BuildGeneralContent(content)
+        else
+            BuildWindowContent(content, index - 1)
         end
-        for _, c in ipairs(tabContents) do
-            c:Hide()
-        end
-        wipe(tabs)
-        wipe(tabContents)
-        activeTab = nil
+    end
 
-        -- Tab 1: General
-        tabs[1] = CreateTab(1, L["SETTINGS_TAB_GENERAL"])
-        tabContents[1] = CreateContentFrame()
-        BuildGeneralContent(tabContents[1])
+    local function LayoutTabs()
+        local wanted = #ns.windows + 1  -- General + one per window
 
-        -- One tab per window
-        for i = 1, #ns.windows do
-            local tabIndex = i + 1
-            local tabName = GetWindowTabName(i)
-            tabs[tabIndex] = CreateTab(tabIndex, tabName)
-            tabContents[tabIndex] = CreateContentFrame()
-            BuildWindowContent(tabContents[tabIndex], i)
+        -- Ensure a tab + content frame exists for every slot, reusing the pool.
+        for i = 1, wanted do
+            if not tabs[i] then
+                tabs[i] = CreateTab(i, "")
+                tabContents[i] = CreateContentFrame()
+            end
+            tabs[i].text:SetText(i == 1 and L["SETTINGS_TAB_GENERAL"] or GetWindowTabName(i - 1))
         end
 
-        -- Add/Remove window buttons as last tab-like controls
-        local windowMgmtIndex = #ns.windows + 2
+        -- Park the surplus (windows removed since last layout).
+        for i = wanted + 1, #tabs do
+            tabs[i]:Hide()
+            if tabContents[i] then tabContents[i]:Hide() end
+        end
+        tabCount = wanted
 
         -- Layout tabs
         local TAB_MAX_WIDTH = 80
         local xOff = 0
-        for i, tab in ipairs(tabs) do
+        for i = 1, wanted do
+            local tab = tabs[i]
             tab:ClearAllPoints()
             tab:SetPoint("TOPLEFT", tabBar, "TOPLEFT", xOff, 0)
             local textWidth = tab.text:GetStringWidth()
@@ -584,7 +721,7 @@ local function CreateSettingsPanel()
             addBG:SetAllPoints()
             local addText = addBtn:CreateFontString(nil, "ARTWORK")
             addText:SetFont(ns.GetFont(), 11, "OUTLINE")
-            addText:SetTextColor(unpack(ns.TEXT_PRIMARY))
+            addText:SetTextColor(1.00, 1.00, 1.00)
             addText:SetPoint("CENTER")
             addText:SetText("+")
             local addHL = addBtn:CreateTexture(nil, "HIGHLIGHT")
@@ -593,7 +730,7 @@ local function CreateSettingsPanel()
             addBtn:SetScript("OnClick", function()
                 if #ns.windows >= ns.MAX_WINDOWS then return end
                 ns.CreateNewWindow()
-                RebuildTabs()
+                LayoutTabs()
                 SetActiveTab(#ns.windows + 1)
             end)
             frame._addTabBtn = addBtn
@@ -608,7 +745,7 @@ local function CreateSettingsPanel()
             removeBG:SetAllPoints()
             local removeText = removeBtn:CreateFontString(nil, "ARTWORK")
             removeText:SetFont(ns.GetFont(), 11, "OUTLINE")
-            removeText:SetTextColor(unpack(ns.TEXT_PRIMARY))
+            removeText:SetTextColor(1.00, 1.00, 1.00)
             removeText:SetPoint("CENTER")
             removeText:SetText("-")
             local removeHL = removeBtn:CreateTexture(nil, "HIGHLIGHT")
@@ -617,9 +754,10 @@ local function CreateSettingsPanel()
             removeBtn:SetScript("OnClick", function()
                 if #ns.windows <= 1 then return end
                 ns.RemoveWindow()
-                RebuildTabs()
-                local newActive = math.min(activeTab or 1, #tabs)
-                SetActiveTab(newActive)
+                LayoutTabs()
+                -- Clamp to the tabs still in use, and force: the index may be
+                -- unchanged while the tab behind it now points elsewhere.
+                SetActiveTab(math.min(activeTab or 1, tabCount), true)
             end)
             frame._removeTabBtn = removeBtn
             frame._removeTabText = removeText
@@ -627,14 +765,14 @@ local function CreateSettingsPanel()
 
         -- Update +/- button colors based on state
         if #ns.windows >= ns.MAX_WINDOWS then
-            frame._addTabText:SetTextColor(unpack(ns.TEXT_MUTED))
+            frame._addTabText:SetTextColor(0.40, 0.40, 0.43)
         else
-            frame._addTabText:SetTextColor(unpack(ns.TEXT_PRIMARY))
+            frame._addTabText:SetTextColor(1.00, 1.00, 1.00)
         end
         if #ns.windows <= 1 then
-            frame._removeTabText:SetTextColor(unpack(ns.TEXT_MUTED))
+            frame._removeTabText:SetTextColor(0.40, 0.40, 0.43)
         else
-            frame._removeTabText:SetTextColor(unpack(ns.TEXT_PRIMARY))
+            frame._removeTabText:SetTextColor(1.00, 1.00, 1.00)
         end
 
         -- Position +/- buttons after tabs
@@ -647,12 +785,26 @@ local function CreateSettingsPanel()
         frame._removeTabBtn:SetPoint("TOPLEFT", tabBar, "TOPLEFT", xOff, 0)
         frame._removeTabBtn:Show()
 
-        -- Activate first tab by default
-        SetActiveTab(1)
+        -- Keep the current tab if it still exists, otherwise fall back to General.
+        if activeTab and activeTab <= tabCount then
+            SetActiveTab(activeTab, true)
+        else
+            SetActiveTab(1, true)
+        end
     end
 
-    frame.RebuildTabs = RebuildTabs
-    RebuildTabs()
+    -- Public surface. `Refresh` is what callers want in almost every case:
+    -- it re-lays out the tab strip (window count / labels) and re-reads every
+    -- widget value, without allocating anything.
+    frame.LayoutTabs = LayoutTabs
+    frame.Refresh = function()
+        LayoutTabs()
+        RefreshWidgets()
+    end
+    -- Back-compat alias for any call site still asking for a rebuild.
+    frame.RebuildTabs = frame.Refresh
+
+    LayoutTabs()
 
     frame:Hide()
     return frame
@@ -662,9 +814,9 @@ function ns.ToggleSettings()
     if not settingsFrame then
         settingsFrame = CreateSettingsPanel()
     end
-    -- Rebuild tabs each time we open to reflect current window state
+    -- Re-sync tabs and widget values on open to reflect current window state.
     if not settingsFrame:IsShown() then
-        settingsFrame.RebuildTabs()
+        settingsFrame.Refresh()
     end
     settingsFrame:SetShown(not settingsFrame:IsShown())
 end

@@ -15,18 +15,23 @@ local SPELL_BAR_SP   = 1
 local ICON_PAD       = 2
 local TEXT_PAD        = 6
 local BORDER_SIZE    = 1
-local RANK_WIDTH     = 22
 
 -- Column widths
-local COL_PCT_W      = 52
-local COL_PERSEC_W   = 50
-local COL_TOTAL_W    = 60
+
+-- Column budgets in characters. Converted to pixels at render time against the
+-- active font size (ns.ColWidth), because these rows use ns.GetFontSize() and
+-- fixed pixel widths silently clipped as soon as the user raised it.
+local RANK_CHARS   = 4   -- "100."
+local PCT_CHARS    = 6   -- "100.0%"
+local PERSEC_CHARS = 6   -- "999.9K"
+local TOTAL_CHARS  = 7   -- "999.9K" + margin
 
 -- Dropdown constants
 local DROPDOWN_WIDTH     = 200
 local DROPDOWN_ROW_H     = 18
 local DROPDOWN_SEARCH_H  = 22
 local DROPDOWN_MAX_ROWS  = 12
+local DROPDOWN_HINT_H    = 12
 
 ----------------------------------------------------------------------
 -- Singleton
@@ -52,34 +57,69 @@ local function HideDropdown()
     end
 end
 
-local function FilterDropdownRows(filterText)
-    if not dropdownFrame or not dropdownFrame._allEntries then return end
+-- Lays the dropdown out: applies the search filter, then shows a window of at
+-- most DROPDOWN_MAX_ROWS matching rows starting at the current scroll offset.
+--
+-- The previous version positioned *every* matching row while capping only the
+-- container height, and the container does not clip. In a raid, players 13+
+-- were drawn straight through the bottom edge of the dropdown and over whatever
+-- sat behind it — and there was no way to reach them except by typing a filter.
+local function LayoutDropdownRows()
+    local dd = dropdownFrame
+    if not dd or not dd._allEntries then return end
 
-    local entries = dropdownFrame._allEntries
-    filterText = (filterText or ""):lower()
+    local entries = dd._allEntries
+    local filterText = (dd._filter or ""):lower()
 
-    local visibleCount = 0
-    for i, row in ipairs(dropdownRows) do
-        local entry = entries[i]
-        if entry then
-            local match = (filterText == "") or entry.name:lower():find(filterText, 1, true)
-            if match then
-                visibleCount = visibleCount + 1
-                row:ClearAllPoints()
-                row:SetPoint("TOPLEFT", dropdownFrame._listContainer, "TOPLEFT", 0,
-                    -((visibleCount - 1) * DROPDOWN_ROW_H))
-                row:Show()
-            else
-                row:Hide()
+    -- Which rows match the filter, in display order.
+    local matching = {}
+    for i, entry in ipairs(entries) do
+        if dropdownRows[i] then
+            if filterText == "" or entry.name:lower():find(filterText, 1, true) then
+                matching[#matching + 1] = i
             end
-        else
-            row:Hide()
         end
     end
 
-    local listH = math.max(visibleCount * DROPDOWN_ROW_H, DROPDOWN_ROW_H)
-    dropdownFrame._listContainer:SetHeight(listH)
-    dropdownFrame:SetHeight(DROPDOWN_SEARCH_H + 1 + listH + 2)
+    local total = #matching
+    local shown = math.min(total, DROPDOWN_MAX_ROWS)
+    local maxOffset = math.max(0, total - DROPDOWN_MAX_ROWS)
+    local offset = math.max(0, math.min(dd._scrollOffset or 0, maxOffset))
+    dd._scrollOffset = offset
+    dd._maxOffset = maxOffset
+
+    for _, row in ipairs(dropdownRows) do row:Hide() end
+
+    for slot = 1, shown do
+        local row = dropdownRows[matching[offset + slot]]
+        if row then
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", dd._listContainer, "TOPLEFT", 0, -((slot - 1) * DROPDOWN_ROW_H))
+            row:SetPoint("RIGHT", dd._listContainer, "RIGHT", 0, 0)
+            row:Show()
+        end
+    end
+
+    -- Scroll hint: shows the visible window only when there is more to reach.
+    if dd._moreFS then
+        if maxOffset > 0 then
+            dd._moreFS:SetFormattedText("%d-%d / %d", offset + 1, offset + shown, total)
+            dd._moreFS:Show()
+        else
+            dd._moreFS:Hide()
+        end
+    end
+
+    local listH = math.max(shown * DROPDOWN_ROW_H, DROPDOWN_ROW_H)
+    dd._listContainer:SetHeight(listH)
+    dd:SetHeight(DROPDOWN_SEARCH_H + 1 + listH + 2 + (maxOffset > 0 and DROPDOWN_HINT_H or 0))
+end
+
+local function FilterDropdownRows(filterText)
+    if not dropdownFrame then return end
+    dropdownFrame._filter = filterText or ""
+    dropdownFrame._scrollOffset = 0
+    LayoutDropdownRows()
 end
 
 local function EnsureDropdown(parent)
@@ -105,7 +145,7 @@ local function EnsureDropdown(parent)
 
     local searchBGTex = searchBG:CreateTexture(nil, "BACKGROUND")
     searchBGTex:SetTexture(ns.FLAT)
-    searchBGTex:SetVertexColor(0.06, 0.10, 0.20, 1)
+    ns.Surface(searchBGTex, 1)
     searchBGTex:SetAllPoints()
 
     local searchBox = CreateFrame("EditBox", nil, searchBG)
@@ -113,13 +153,13 @@ local function EnsureDropdown(parent)
     searchBox:SetPoint("RIGHT", searchBG, "RIGHT", -4, 0)
     searchBox:SetHeight(DROPDOWN_SEARCH_H)
     searchBox:SetFont(ns.GetFont(), 9, "OUTLINE")
-    searchBox:SetTextColor(unpack(ns.TEXT_PRIMARY))
+    ns.Tint(searchBox, "primary")
     searchBox:SetAutoFocus(false)
     searchBox:SetMaxLetters(20)
 
     local placeholder = searchBox:CreateFontString(nil, "ARTWORK")
     placeholder:SetFont(ns.GetFont(), 9, "OUTLINE")
-    placeholder:SetTextColor(unpack(ns.TEXT_MUTED))
+    ns.Tint(placeholder, "muted")
     placeholder:SetPoint("LEFT", 2, 0)
     placeholder:SetText(L["FILTER_PLAYERS"] or "Filter...")
 
@@ -142,15 +182,34 @@ local function EnsureDropdown(parent)
     searchSep:SetPoint("TOPLEFT", searchBG, "BOTTOMLEFT")
     searchSep:SetPoint("TOPRIGHT", searchBG, "BOTTOMRIGHT")
 
-    -- List container
+    -- List container. Clips, so a row that slips outside the window can never
+    -- paint over whatever sits behind the dropdown.
     local listContainer = CreateFrame("Frame", nil, dd)
     listContainer:SetPoint("TOPLEFT", searchSep, "BOTTOMLEFT", 0, 0)
     listContainer:SetPoint("RIGHT", dd, "RIGHT", -1, 0)
     listContainer:SetHeight(DROPDOWN_MAX_ROWS * DROPDOWN_ROW_H)
+    listContainer:SetClipsChildren(true)
     dd._listContainer = listContainer
+
+    -- "13-24 / 30" hint, shown only when the list overflows.
+    local moreFS = dd:CreateFontString(nil, "OVERLAY")
+    moreFS:SetFont(ns.GetFont(), 8, "OUTLINE")
+    ns.Tint(moreFS, "muted")
+    moreFS:SetPoint("TOP", listContainer, "BOTTOM", 0, -1)
+    moreFS:Hide()
+    dd._moreFS = moreFS
+
+    dd:EnableMouseWheel(true)
+    dd:SetScript("OnMouseWheel", function(self, delta)
+        if (self._maxOffset or 0) <= 0 then return end
+        self._scrollOffset = (self._scrollOffset or 0) - delta
+        LayoutDropdownRows()
+    end)
 
     dd:Hide()
     dd:SetScript("OnShow", function(self)
+        self._filter = ""
+        self._scrollOffset = 0
         self._searchBox:SetText("")
         self._searchBox:SetFocus()
     end)
@@ -231,7 +290,7 @@ local function PopulateDropdown(parent, sources, selectedGUID)
             local dpsFS = row:CreateFontString(nil, "ARTWORK")
             dpsFS:SetFont(ns.GetFont(), 8, "OUTLINE")
             dpsFS:SetJustifyH("RIGHT")
-            dpsFS:SetTextColor(unpack(ns.TEXT_MUTED))
+            ns.Tint(dpsFS, "muted")
             dpsFS:SetPoint("RIGHT", row, "RIGHT", -6, 0)
             dpsFS:SetWidth(38)
             row._dpsFS = dpsFS
@@ -255,7 +314,7 @@ local function PopulateDropdown(parent, sources, selectedGUID)
         else
             row._selBG:SetVertexColor(0, 0, 0, 0)
             row._accent:Hide()
-            row._nameFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+            ns.Tint(row._nameFS, "secondary")
         end
 
         row._nameFS:SetText(entry.name)
@@ -276,15 +335,11 @@ local function PopulateDropdown(parent, sources, selectedGUID)
                 currentMeterType, currentSessionType, self._classFile)
         end)
 
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", dd._listContainer, "TOPLEFT", 0, -((i - 1) * DROPDOWN_ROW_H))
-        row:Show()
     end
 
-    local visibleCount = math.min(#entries, DROPDOWN_MAX_ROWS)
-    local listH = visibleCount * DROPDOWN_ROW_H
-    dd._listContainer:SetHeight(listH)
-    dd:SetHeight(DROPDOWN_SEARCH_H + 1 + listH + 2)
+    dd._filter = ""
+    dd._scrollOffset = 0
+    LayoutDropdownRows()
 
     return dd
 end
@@ -358,14 +413,14 @@ local function EnsureWindow()
     -- Title
     local titleFS = header:CreateFontString(nil, "ARTWORK")
     titleFS:SetFont(ns.GetFont(), 12, "OUTLINE")
-    titleFS:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+    ns.Tint(titleFS, "accent")
     titleFS:SetPoint("LEFT", detailsIcon, "RIGHT", 6, ns.GetFontNudge())
     titleFS:SetText(L["SPELL_BREAKDOWN"])
 
     -- Meter type label (right of title)
     local typeFS = header:CreateFontString(nil, "ARTWORK")
     typeFS:SetFont(ns.GetFont(), 10, "OUTLINE")
-    typeFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+    ns.Tint(typeFS, "secondary")
     typeFS:SetPoint("LEFT", titleFS, "RIGHT", 8, 0)
     frame._typeFS = typeFS
 
@@ -398,7 +453,7 @@ local function EnsureWindow()
 
     local stripBG = playerStrip:CreateTexture(nil, "BACKGROUND")
     stripBG:SetTexture(ns.FLAT)
-    stripBG:SetVertexColor(0.03, 0.06, 0.12, 1)
+    ns.Surface(stripBG, 1)
     stripBG:SetAllPoints()
 
     -- Dropdown toggle button (right side of strip)
@@ -409,7 +464,7 @@ local function EnsureWindow()
 
     local ddToggleBG = ddToggle:CreateTexture(nil, "BACKGROUND")
     ddToggleBG:SetTexture(ns.FLAT)
-    ddToggleBG:SetVertexColor(0.05, 0.09, 0.18, 1)
+    ns.Surface(ddToggleBG, 1)
     ddToggleBG:SetAllPoints()
 
     local ddToggleSep = ddToggle:CreateTexture(nil, "OVERLAY")
@@ -421,7 +476,7 @@ local function EnsureWindow()
 
     local ddCountFS = ddToggle:CreateFontString(nil, "ARTWORK")
     ddCountFS:SetFont(ns.GetFont(), 8, "OUTLINE")
-    ddCountFS:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+    ns.Tint(ddCountFS, "accent")
     ddCountFS:SetPoint("CENTER", ddToggle, "CENTER", -2, 0)
     frame._ddCountFS = ddCountFS
 
@@ -476,7 +531,7 @@ local function EnsureWindow()
 
     local colHeaderBG = colHeader:CreateTexture(nil, "BACKGROUND")
     colHeaderBG:SetTexture(ns.FLAT)
-    colHeaderBG:SetVertexColor(0.05, 0.08, 0.14, 0.80)
+    ns.Surface(colHeaderBG, 0.80)
     colHeaderBG:SetAllPoints()
 
     local colHeaderSep = frame:CreateTexture(nil, "OVERLAY")
@@ -489,7 +544,7 @@ local function EnsureWindow()
     local function MakeColLabel(parent, text, width, anchorTo)
         local fs = parent:CreateFontString(nil, "ARTWORK")
         fs:SetFont(ns.GetFont(), 9, "OUTLINE")
-        fs:SetTextColor(unpack(ns.TEXT_MUTED))
+        ns.Tint(fs, "muted")
         fs:SetJustifyH("RIGHT")
         fs:SetWidth(width)
         if anchorTo then
@@ -501,15 +556,15 @@ local function EnsureWindow()
         return fs
     end
 
-    local colPct    = MakeColLabel(colHeader, "%",                     COL_PCT_W,    nil)
-    local colPerSec = MakeColLabel(colHeader, "/s",                    COL_PERSEC_W, colPct)
-    local colTotal  = MakeColLabel(colHeader, L["BREAKDOWN_COL_TOTAL"], COL_TOTAL_W,  colPerSec)
+    local colPct    = MakeColLabel(colHeader, "%",                     ns.ColWidth(PCT_CHARS),    nil)
+    local colPerSec = MakeColLabel(colHeader, "/s",                    ns.ColWidth(PERSEC_CHARS), colPct)
+    local colTotal  = MakeColLabel(colHeader, L["BREAKDOWN_COL_TOTAL"], ns.ColWidth(TOTAL_CHARS),  colPerSec)
 
     local colSpell = colHeader:CreateFontString(nil, "ARTWORK")
     colSpell:SetFont(ns.GetFont(), 9, "OUTLINE")
-    colSpell:SetTextColor(unpack(ns.TEXT_MUTED))
+    ns.Tint(colSpell, "muted")
     colSpell:SetJustifyH("LEFT")
-    colSpell:SetPoint("LEFT", colHeader, "LEFT", RANK_WIDTH + SPELL_BAR_H + ICON_PAD + TEXT_PAD + 4, 0)
+    colSpell:SetPoint("LEFT", colHeader, "LEFT", ns.ColWidth(RANK_CHARS) + SPELL_BAR_H + ICON_PAD + TEXT_PAD + 4, 0)
     colSpell:SetPoint("RIGHT", colTotal, "LEFT", -4, 0)
     colSpell:SetText(L["BREAKDOWN_COL_SPELL"])
 
@@ -595,9 +650,9 @@ local function EnsureWindow()
 
             local rankFS = button:CreateFontString(nil, "ARTWORK")
             rankFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
-            rankFS:SetTextColor(unpack(ns.TEXT_MUTED))
+            ns.Tint(rankFS, "muted")
             rankFS:SetJustifyH("RIGHT")
-            rankFS:SetWidth(RANK_WIDTH)
+            rankFS:SetWordWrap(false)
             rankFS:SetPoint("LEFT", 2, ns.GetFontNudge())
             button._rankFS = rankFS
 
@@ -625,6 +680,7 @@ local function EnsureWindow()
             local totalFS = bar:CreateFontString(nil, "OVERLAY")
             totalFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
             totalFS:SetJustifyH("RIGHT")
+            totalFS:SetWordWrap(false)
             totalFS:SetShadowOffset(1, -1)
             totalFS:SetShadowColor(0, 0, 0, 0.4)
             button._totalFS = totalFS
@@ -632,7 +688,8 @@ local function EnsureWindow()
             local perSecFS = bar:CreateFontString(nil, "OVERLAY")
             perSecFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
             perSecFS:SetJustifyH("RIGHT")
-            perSecFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+            perSecFS:SetWordWrap(false)
+            ns.Tint(perSecFS, "secondary")
             perSecFS:SetShadowOffset(1, -1)
             perSecFS:SetShadowColor(0, 0, 0, 0.4)
             button._perSecFS = perSecFS
@@ -640,6 +697,7 @@ local function EnsureWindow()
             local pctFS = bar:CreateFontString(nil, "OVERLAY")
             pctFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
             pctFS:SetJustifyH("RIGHT")
+            pctFS:SetWordWrap(false)
             pctFS:SetShadowOffset(1, -1)
             pctFS:SetShadowColor(0, 0, 0, 0.4)
             button._pctFS = pctFS
@@ -666,6 +724,7 @@ local function EnsureWindow()
 
         local nudge = ns.GetFontNudge()
 
+        button._rankFS:SetWidth(ns.ColWidth(RANK_CHARS))
         button._rankFS:SetText(data.rank .. ".")
         button._icon:SetTexture(data.icon or 134400)
 
@@ -684,13 +743,13 @@ local function EnsureWindow()
         button._bar:SetValue(data.total or 0)
 
         button._nameFS:SetText(data.displayName or data.name or "?")
-        button._nameFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
+        ns.Tint(button._nameFS, "primary")
 
         button._pctFS:SetText(string.format("%.1f%%", data.pct or 0))
         button._pctFS:SetTextColor(r, g, b)
 
         button._totalFS:SetText(ns.FormatNumber(data.total or 0, "1dec"))
-        button._totalFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
+        ns.Tint(button._totalFS, "primary")
 
         if data.perSec and not issecretvalue(data.perSec) and data.perSec > 0 then
             button._perSecFS:SetText(ns.FormatNumber(data.perSec, "1dec"))
@@ -700,15 +759,15 @@ local function EnsureWindow()
 
         button._pctFS:ClearAllPoints()
         button._pctFS:SetPoint("RIGHT", button._bar, "RIGHT", -TEXT_PAD, nudge)
-        button._pctFS:SetWidth(COL_PCT_W)
+        button._pctFS:SetWidth(ns.ColWidth(PCT_CHARS))
 
         button._perSecFS:ClearAllPoints()
         button._perSecFS:SetPoint("RIGHT", button._pctFS, "LEFT", -4, 0)
-        button._perSecFS:SetWidth(COL_PERSEC_W)
+        button._perSecFS:SetWidth(ns.ColWidth(PERSEC_CHARS))
 
         button._totalFS:ClearAllPoints()
         button._totalFS:SetPoint("RIGHT", button._perSecFS, "LEFT", -4, 0)
-        button._totalFS:SetWidth(COL_TOTAL_W)
+        button._totalFS:SetWidth(ns.ColWidth(TOTAL_CHARS))
 
         button._nameFS:ClearAllPoints()
         button._nameFS:SetPoint("LEFT", button._bar, "LEFT", TEXT_PAD, nudge)
@@ -733,7 +792,7 @@ local function EnsureWindow()
     -- No data text
     local noDataFS = frame:CreateFontString(nil, "ARTWORK")
     noDataFS:SetFont(ns.GetFont(), 11, "OUTLINE")
-    noDataFS:SetTextColor(unpack(ns.TEXT_MUTED))
+    ns.Tint(noDataFS, "muted")
     noDataFS:SetPoint("CENTER", spellScroll, "CENTER", 0, 0)
     noDataFS:SetText(L["NO_DATA"])
     noDataFS:Hide()
@@ -751,14 +810,37 @@ end
 -- Player Strip: build clickable buttons (scrollable + dropdown)
 ----------------------------------------------------------------------
 
+-- Re-tint the strip to mark `selectedGUID` as active. Cheap: touches only the
+-- already-built buttons, so switching the selected player never rebuilds the
+-- strip (and never allocates a frame).
+local function UpdatePlayerStripSelection(selectedGUID)
+    for _, btn in ipairs(playerButtons) do
+        if btn:IsShown() then
+            local cc = btn._classFile and RAID_CLASS_COLORS[btn._classFile]
+            if btn._guid == selectedGUID then
+                btn._bg:SetVertexColor(
+                    cc and cc.r * 0.3 or ns.ACCENT[1] * 0.3,
+                    cc and cc.g * 0.3 or ns.ACCENT[2] * 0.3,
+                    cc and cc.b * 0.3 or ns.ACCENT[3] * 0.3, 0.90)
+                btn._text:SetTextColor(cc and cc.r or 1, cc and cc.g or 1, cc and cc.b or 1)
+            else
+                ns.Surface(btn._bg, 0.70)
+                ns.Tint(btn._text, "muted")
+            end
+        end
+    end
+end
+
 local function BuildPlayerStrip(frame, meterType, sessionType, selectedGUID)
     local stripChild = frame._stripChild
 
-    -- Hide old buttons
+    -- Hide old buttons. `playerButtons` is a persistent pool indexed 1..n and
+    -- is deliberately NOT wiped: wiping it made `playerButtons[n]` nil on every
+    -- pass, so each rebuild allocated a fresh Button that could never be
+    -- reclaimed (WoW frames are not garbage collected).
     for _, btn in ipairs(playerButtons) do
         btn:Hide()
     end
-    wipe(playerButtons)
 
     -- Get session data for player list
     local session = C_DamageMeter.GetCombatSessionFromType(sessionType, meterType)
@@ -815,20 +897,6 @@ local function BuildPlayerStrip(frame, meterType, sessionType, selectedGUID)
             local shortName = ns.StripRealm(name) or name
             btn._text:SetText(shortName)
 
-            local cc = classFile and RAID_CLASS_COLORS[classFile]
-            local isSelected = (guid == selectedGUID)
-
-            if isSelected then
-                btn._bg:SetVertexColor(
-                    cc and cc.r * 0.3 or ns.ACCENT[1] * 0.3,
-                    cc and cc.g * 0.3 or ns.ACCENT[2] * 0.3,
-                    cc and cc.b * 0.3 or ns.ACCENT[3] * 0.3, 0.90)
-                btn._text:SetTextColor(cc and cc.r or 1, cc and cc.g or 1, cc and cc.b or 1)
-            else
-                btn._bg:SetVertexColor(0.05, 0.08, 0.14, 0.70)
-                btn._text:SetTextColor(unpack(ns.TEXT_MUTED))
-            end
-
             -- Store data for click
             btn._guid = guid
             btn._classFile = classFile
@@ -861,17 +929,21 @@ local function BuildPlayerStrip(frame, meterType, sessionType, selectedGUID)
     frame._ddCountFS:SetText(tostring(totalPlayers))
     frame._ddToggle:Show()
 
-    -- Wire dropdown toggle
+    -- Wire dropdown toggle. Reads `currentGUID` at click time rather than the
+    -- `selectedGUID` upvalue, which goes stale as soon as the selection changes
+    -- without a rebuild.
     frame._ddToggle:SetScript("OnClick", function(self)
         if dropdownFrame and dropdownFrame:IsShown() then
             HideDropdown()
             return
         end
-        local dd = PopulateDropdown(breakdownFrame, sources, selectedGUID)
+        local dd = PopulateDropdown(breakdownFrame, sources, currentGUID)
         dd:ClearAllPoints()
         dd:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -2)
         dd:Show()
     end)
+
+    UpdatePlayerStripSelection(selectedGUID)
 
     return firstGUID
 end
@@ -957,9 +1029,15 @@ function ns.ShowSpellBreakdown(playerName, sourceGUID, meterType, sessionType, c
             local session = C_DamageMeter.GetCombatSessionFromType(sessionType, meterType)
             if session and not issecretvalue(session) and session.combatSources then
                 for _, src in ipairs(session.combatSources) do
-                    if src.sourceGUID == sourceGUID then
+                    local g = src.sourceGUID
+                    -- Guard before the comparison: enemy / mid-combat sources can
+                    -- carry a secret GUID, and comparing one in Lua errors out.
+                    if g ~= nil and not issecretvalue(g) and g == sourceGUID then
                         classFilename = src.classFilename
-                        playerName = ns.StripRealm(src.name) or src.name
+                        local n = src.name
+                        if n ~= nil and not issecretvalue(n) then
+                            playerName = ns.StripRealm(n) or n
+                        end
                         break
                     end
                 end
@@ -976,8 +1054,9 @@ function ns.ShowSpellBreakdown(playerName, sourceGUID, meterType, sessionType, c
         return
     end
 
-    -- Refresh player strip highlighting
-    BuildPlayerStrip(frame, meterType, sessionType, sourceGUID)
+    -- Refresh player strip highlighting. Re-tint only — rebuilding here was the
+    -- second of two full strip builds per open.
+    UpdatePlayerStripSelection(sourceGUID)
 
     -- Populate spell list
     PopulateSpells(frame, sourceGUID, meterType, sessionType, classFilename)

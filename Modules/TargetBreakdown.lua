@@ -16,12 +16,16 @@ local BAR_H          = 20
 local BAR_SP         = 1
 local TEXT_PAD       = 6
 local BORDER_SIZE    = 1
-local RANK_WIDTH     = 22
 
 -- Column widths
-local COL_PCT_W      = 52
-local COL_PERSEC_W   = 50
-local COL_TOTAL_W    = 60
+
+-- Column budgets in characters. Converted to pixels at render time against the
+-- active font size (ns.ColWidth), because these rows use ns.GetFontSize() and
+-- fixed pixel widths silently clipped as soon as the user raised it.
+local RANK_CHARS   = 4   -- "100."
+local PCT_CHARS    = 6   -- "100.0%"
+local PERSEC_CHARS = 6   -- "999.9K"
+local TOTAL_CHARS  = 7   -- "999.9K" + margin
 
 ----------------------------------------------------------------------
 -- Singleton & State
@@ -117,14 +121,14 @@ local function EnsureWindow()
     -- Title
     local titleFS = header:CreateFontString(nil, "ARTWORK")
     titleFS:SetFont(ns.GetFont(), 12, "OUTLINE")
-    titleFS:SetTextColor(ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3])
+    ns.Tint(titleFS, "accent")
     titleFS:SetPoint("LEFT", targetIcon, "RIGHT", 6, ns.GetFontNudge())
     frame._titleFS = titleFS
 
     -- Subtitle (right of title)
     local subtitleFS = header:CreateFontString(nil, "ARTWORK")
     subtitleFS:SetFont(ns.GetFont(), 10, "OUTLINE")
-    subtitleFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+    ns.Tint(subtitleFS, "secondary")
     subtitleFS:SetPoint("LEFT", titleFS, "RIGHT", 8, 0)
     frame._subtitleFS = subtitleFS
 
@@ -176,7 +180,7 @@ local function EnsureWindow()
 
     local colHeaderBG = colHeader:CreateTexture(nil, "BACKGROUND")
     colHeaderBG:SetTexture(ns.FLAT)
-    colHeaderBG:SetVertexColor(0.05, 0.08, 0.14, 0.80)
+    ns.Surface(colHeaderBG, 0.80)
     colHeaderBG:SetAllPoints()
 
     local colHeaderSep = frame:CreateTexture(nil, "OVERLAY")
@@ -189,7 +193,7 @@ local function EnsureWindow()
     local function MakeColLabel(parent, text, width, anchorTo)
         local fs = parent:CreateFontString(nil, "ARTWORK")
         fs:SetFont(ns.GetFont(), 9, "OUTLINE")
-        fs:SetTextColor(unpack(ns.TEXT_MUTED))
+        ns.Tint(fs, "muted")
         fs:SetJustifyH("RIGHT")
         fs:SetWidth(width)
         if anchorTo then
@@ -201,15 +205,15 @@ local function EnsureWindow()
         return fs
     end
 
-    local colPct    = MakeColLabel(colHeader, "%",                      COL_PCT_W,    nil)
-    local colPerSec = MakeColLabel(colHeader, "/s",                     COL_PERSEC_W, colPct)
-    local colTotal  = MakeColLabel(colHeader, L["BREAKDOWN_COL_TOTAL"], COL_TOTAL_W,  colPerSec)
+    local colPct    = MakeColLabel(colHeader, "%",                      ns.ColWidth(PCT_CHARS),    nil)
+    local colPerSec = MakeColLabel(colHeader, "/s",                     ns.ColWidth(PERSEC_CHARS), colPct)
+    local colTotal  = MakeColLabel(colHeader, L["BREAKDOWN_COL_TOTAL"], ns.ColWidth(TOTAL_CHARS),  colPerSec)
 
     local colName = colHeader:CreateFontString(nil, "ARTWORK")
     colName:SetFont(ns.GetFont(), 9, "OUTLINE")
-    colName:SetTextColor(unpack(ns.TEXT_MUTED))
+    ns.Tint(colName, "muted")
     colName:SetJustifyH("LEFT")
-    colName:SetPoint("LEFT", colHeader, "LEFT", RANK_WIDTH + TEXT_PAD + 4, 0)
+    colName:SetPoint("LEFT", colHeader, "LEFT", ns.ColWidth(RANK_CHARS) + TEXT_PAD + 4, 0)
     colName:SetPoint("RIGHT", colTotal, "LEFT", -4, 0)
     frame._colName = colName
 
@@ -295,9 +299,9 @@ local function EnsureWindow()
 
             local rankFS = button:CreateFontString(nil, "ARTWORK")
             rankFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
-            rankFS:SetTextColor(unpack(ns.TEXT_MUTED))
+            ns.Tint(rankFS, "muted")
             rankFS:SetJustifyH("RIGHT")
-            rankFS:SetWidth(RANK_WIDTH)
+            rankFS:SetWordWrap(false)
             rankFS:SetPoint("LEFT", 2, ns.GetFontNudge())
             button._rankFS = rankFS
 
@@ -320,6 +324,7 @@ local function EnsureWindow()
             local totalFS = bar:CreateFontString(nil, "OVERLAY")
             totalFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
             totalFS:SetJustifyH("RIGHT")
+            totalFS:SetWordWrap(false)
             totalFS:SetShadowOffset(1, -1)
             totalFS:SetShadowColor(0, 0, 0, 0.4)
             button._totalFS = totalFS
@@ -327,7 +332,8 @@ local function EnsureWindow()
             local perSecFS = bar:CreateFontString(nil, "OVERLAY")
             perSecFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
             perSecFS:SetJustifyH("RIGHT")
-            perSecFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+            perSecFS:SetWordWrap(false)
+            ns.Tint(perSecFS, "secondary")
             perSecFS:SetShadowOffset(1, -1)
             perSecFS:SetShadowColor(0, 0, 0, 0.4)
             button._perSecFS = perSecFS
@@ -335,6 +341,7 @@ local function EnsureWindow()
             local pctFS = bar:CreateFontString(nil, "OVERLAY")
             pctFS:SetFont(ns.GetFont(), ns.GetFontSize(), "OUTLINE")
             pctFS:SetJustifyH("RIGHT")
+            pctFS:SetWordWrap(false)
             pctFS:SetShadowOffset(1, -1)
             pctFS:SetShadowColor(0, 0, 0, 0.4)
             button._pctFS = pctFS
@@ -365,6 +372,7 @@ local function EnsureWindow()
         button._elementData = data
 
         local nudge = ns.GetFontNudge()
+        button._rankFS:SetWidth(ns.ColWidth(RANK_CHARS))
         button._rankFS:SetText(data.rank .. ".")
 
         -- Bar color: amber for segments, red for enemies
@@ -385,19 +393,19 @@ local function EnsureWindow()
         button._bar:SetValue(data.total or 0)
 
         button._nameFS:SetText(data.name or "?")
-        button._nameFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
+        ns.Tint(button._nameFS, "primary")
 
         -- Duration string for segments, percentage for enemies
         if data.isSegment then
             button._pctFS:SetText(data.durationText or "")
-            button._pctFS:SetTextColor(unpack(ns.TEXT_SECONDARY))
+            ns.Tint(button._pctFS, "secondary")
         else
             button._pctFS:SetText(string.format("%.1f%%", data.pct or 0))
             button._pctFS:SetTextColor(r, g, b)
         end
 
         button._totalFS:SetText(ns.FormatNumber(data.total or 0, "1dec"))
-        button._totalFS:SetTextColor(unpack(ns.TEXT_PRIMARY))
+        ns.Tint(button._totalFS, "primary")
 
         if data.perSec and not issecretvalue(data.perSec) and data.perSec > 0 then
             button._perSecFS:SetText(ns.FormatNumber(data.perSec, "1dec"))
@@ -407,15 +415,15 @@ local function EnsureWindow()
 
         button._pctFS:ClearAllPoints()
         button._pctFS:SetPoint("RIGHT", button._bar, "RIGHT", -TEXT_PAD, nudge)
-        button._pctFS:SetWidth(COL_PCT_W)
+        button._pctFS:SetWidth(ns.ColWidth(PCT_CHARS))
 
         button._perSecFS:ClearAllPoints()
         button._perSecFS:SetPoint("RIGHT", button._pctFS, "LEFT", -4, 0)
-        button._perSecFS:SetWidth(COL_PERSEC_W)
+        button._perSecFS:SetWidth(ns.ColWidth(PERSEC_CHARS))
 
         button._totalFS:ClearAllPoints()
         button._totalFS:SetPoint("RIGHT", button._perSecFS, "LEFT", -4, 0)
-        button._totalFS:SetWidth(COL_TOTAL_W)
+        button._totalFS:SetWidth(ns.ColWidth(TOTAL_CHARS))
 
         button._nameFS:ClearAllPoints()
         button._nameFS:SetPoint("LEFT", button._bar, "LEFT", TEXT_PAD, nudge)
@@ -440,7 +448,7 @@ local function EnsureWindow()
     -- No data text
     local noDataFS = frame:CreateFontString(nil, "ARTWORK")
     noDataFS:SetFont(ns.GetFont(), 11, "OUTLINE")
-    noDataFS:SetTextColor(unpack(ns.TEXT_MUTED))
+    ns.Tint(noDataFS, "muted")
     noDataFS:SetPoint("CENTER", scroll, "CENTER", 0, 0)
     noDataFS:SetText(L["NO_DATA"])
     noDataFS:Hide()

@@ -135,8 +135,8 @@ ns.DEFAULT_COLUMNS = {
 }
 
 ns.FORMAT_OPTIONS = {
-    rate  = { "short", "1dec", "2dec", "full" },
-    total = { "short", "1dec", "2dec", "full" },
+    rate  = { "short", "1dec", "2dec", "3dec", "full" },
+    total = { "short", "1dec", "2dec", "3dec", "full" },
     pct   = { "int",  "dec" },
 }
 

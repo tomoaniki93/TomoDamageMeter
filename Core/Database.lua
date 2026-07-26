@@ -53,12 +53,34 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         if not ns.db.columns then
             ns.db.columns = CopyTable(ns.DEFAULT_COLUMNS)
         end
+        -- Legacy rows predate the fmt field. Seed from ns.DEFAULT_COLUMNS (the
+        -- single source of truth) rather than a divergent inline table, and drop
+        -- any saved fmt that is no longer a valid option for that column.
+        local defaultFmt = {}
+        for _, col in ipairs(ns.DEFAULT_COLUMNS) do
+            defaultFmt[col.key] = col.fmt
+        end
         for _, col in ipairs(ns.db.columns) do
-            if not col.fmt then
-                local defaults = { rate = "full", total = "full", pct = "int" }
-                col.fmt = defaults[col.key] or "full"
+            local allowed = ns.FORMAT_OPTIONS[col.key]
+            local valid = false
+            if col.fmt and allowed then
+                for _, opt in ipairs(allowed) do
+                    if opt == col.fmt then valid = true; break end
+                end
+            end
+            if not valid then
+                col.fmt = defaultFmt[col.key] or "1dec"
+            elseif col.fmt == "full" and not ns.db.fmtFullMigrated then
+                -- One-time migration. "full" was never a deliberate choice: the
+                -- broken legacy seeding above assigned it, and it rendered
+                -- through AbbreviateLargeNumbers as "16156 K" — unit pinned at
+                -- K, digits piling up. "3dec" shows the same precision as
+                -- "16.156M". Anyone who genuinely wants raw digits can pick
+                -- "full" again; the flag makes sure we only do this once.
+                col.fmt = "3dec"
             end
         end
+        ns.db.fmtFullMigrated = true
 
         -- Migrate legacy single-window config to multi-window array
         if ns.db.window and not ns.db.windowConfigs then
@@ -67,6 +89,17 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         end
         if not ns.db.windowConfigs or #ns.db.windowConfigs == 0 then
             ns.db.windowConfigs = { {} }
+        end
+
+        -- Backfill stable ids on configs saved before docking existed, and
+        -- keep the counter ahead of the highest one in use.
+        for _, cfg in ipairs(ns.db.windowConfigs) do
+            if type(cfg.id) == "number" and cfg.id > (ns.db.nextWindowId or 0) then
+                ns.db.nextWindowId = cfg.id
+            end
+        end
+        for _, cfg in ipairs(ns.db.windowConfigs) do
+            if type(cfg.id) ~= "number" then cfg.id = ns.NextWindowId() end
         end
 
         -- Create all saved windows
@@ -79,6 +112,10 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
             win.Refresh()
             C_Timer.After(0, win.UpdateHeader)
         end
+
+        -- Second pass: a window cannot anchor to one that does not exist yet,
+        -- so docks are re-applied only once every window has been created.
+        if ns.RestoreSnaps then ns.RestoreSnaps() end
 
         -- Enforce: switch any window showing a disabled category
         ns.EnforceEnabledTypes()
@@ -111,6 +148,14 @@ end)
 -- Multi-Window Management
 ----------------------------------------------------------------------
 
+-- Stable per-window identity. Dock relations are stored by id, not by array
+-- index: RemoveWindow shifts every index after the removed one, which would
+-- silently repoint a saved dock at the wrong window.
+function ns.NextWindowId()
+    ns.db.nextWindowId = (ns.db.nextWindowId or 0) + 1
+    return ns.db.nextWindowId
+end
+
 function ns.CreateNewWindow()
     if #ns.windows >= ns.MAX_WINDOWS then return false end
     local cfg = {}
@@ -118,6 +163,7 @@ function ns.CreateNewWindow()
         cfg[k] = type(v) == "table" and CopyTable(v) or v
     end
     -- Offset new windows so they don't stack exactly on top
+    cfg.id = ns.NextWindowId()
     cfg.x = cfg.x + 30 * #ns.windows
     cfg.y = cfg.y - 30 * #ns.windows
     table.insert(ns.db.windowConfigs, cfg)
@@ -133,6 +179,10 @@ function ns.RemoveWindow(index)
     index = index or #ns.windows
     local win = ns.windows[index]
     if not win then return false end
+    -- Followers first: leaving them anchored to a hidden frame would strand
+    -- them off-screen with no way to grab them.
+    if ns.SnapDetachChildrenOf then ns.SnapDetachChildrenOf(win) end
+    if ns.SnapDetachFrame then ns.SnapDetachFrame(win.frame) end
     win.frame:Hide()
     table.remove(ns.windows, index)
     table.remove(ns.db.windowConfigs, index)
@@ -193,25 +243,42 @@ end
 
 local lastRefreshTime = 0
 local REFRESH_INTERVAL = 0.15
-local deferredPending = false
+local TARGET_INTERVAL = 1.0   -- segment browser: much heavier, much less urgent
+local lastTargetTime = 0
+local refreshing = false
 
-local function ThrottledRefresh()
-    local now = GetTime()
-    if now - lastRefreshTime < REFRESH_INTERVAL then
-        if not deferredPending then
-            deferredPending = true
-            C_Timer.After(REFRESH_INTERVAL, function()
-                deferredPending = false
-                lastRefreshTime = GetTime()
-                for _, win in ipairs(ns.windows) do win.Refresh() end
-                if ns.RefreshTargetBreakdown then ns.RefreshTargetBreakdown() end
-            end)
-        end
-        return
-    end
-    lastRefreshTime = now
+-- The single data pass. Every caller must reach this from inside an event
+-- handler: C_DamageMeter returns readable values there and secret values from a
+-- timer callback, so anything deferred loses the ability to do Lua-side maths.
+local function DoRefresh()
+    if refreshing then return end
+    refreshing = true
+    lastRefreshTime = GetTime()
+
     for _, win in ipairs(ns.windows) do win.Refresh() end
-    if ns.RefreshTargetBreakdown then ns.RefreshTargetBreakdown() end
+
+    -- The segment browser re-queries one session per segment and rebuilds its
+    -- whole data provider, so it gets its own, slower gate. On the old deferred
+    -- path this cost was hidden in a timer; running in-handler it would stall
+    -- the event at 6.6 Hz.
+    if ns.RefreshTargetBreakdown then
+        local now = GetTime()
+        if now - lastTargetTime >= TARGET_INTERVAL then
+            lastTargetTime = now
+            ns.RefreshTargetBreakdown()
+        end
+    end
+
+    refreshing = false
+end
+
+-- Leading-edge throttle. An update arriving inside the interval is dropped
+-- outright rather than deferred to a timer: during combat the DAMAGE_METER_*
+-- stream is continuous, so the next event past the interval carries the same
+-- state, and PLAYER_REGEN_ENABLED guarantees a final pass on the trailing edge.
+local function ThrottledRefresh()
+    if GetTime() - lastRefreshTime < REFRESH_INTERVAL then return end
+    DoRefresh()
 end
 
 ----------------------------------------------------------------------
@@ -238,6 +305,11 @@ dmEventFrame:SetScript("OnEvent", function(self, event)
             end)
             ns._timerTicker = timerTicker
         end
+        -- The one data pass that cannot run in-handler: ACTIONS meters
+        -- (Interrupts / Dispels / Deaths) emit no DAMAGE_METER_* event, so there
+        -- is nothing to hook. Values read here are secret, which is tolerable
+        -- because that category renders its total through SetFormattedText — a
+        -- C-side setter that accepts secrets. Everything else is event-driven.
         if not refreshTicker and NeedsPeriodicRefresh() then
             refreshTicker = C_Timer.NewTicker(1, function()
                 for _, win in ipairs(ns.windows) do win.Refresh() end
@@ -253,14 +325,66 @@ dmEventFrame:SetScript("OnEvent", function(self, event)
         if timerTicker then timerTicker:Cancel(); timerTicker = nil; ns._timerTicker = nil end
         if refreshTicker then refreshTicker:Cancel(); refreshTicker = nil; ns._refreshTicker = nil end
         for _, win in ipairs(ns.windows) do win.UpdateTimer() end
-        -- Re-render immédiat: les noms ne sont plus secret
-        for _, win in ipairs(ns.windows) do win.Refresh() end
+        -- Trailing-edge pass: picks up whatever the throttle dropped in the
+        -- last interval of the fight, and re-renders now that names resolve.
+        lastRefreshTime = 0
+        DoRefresh()
+        -- Capture the run totals while still inside this handler. Nothing
+        -- outside a handler can read these values; see Modules/RunRecap.lua.
+        if ns.RunRecapSnapshot then ns.RunRecapSnapshot() end
     else
         -- DAMAGE_METER_COMBAT_SESSION_UPDATED / CURRENT_SESSION_UPDATED
-        -- → throttle à 150ms (REFRESH_INTERVAL) au lieu de chaque frame
+        -- → throttled to REFRESH_INTERVAL (150ms) rather than every frame
+        if diagArmed then
+            diagArmed = false
+            ProbeSession("in-handler   ")
+            C_Timer.After(0, function() ProbeSession("C_Timer.After") end)
+        end
         ThrottledRefresh()
     end
 end)
+
+----------------------------------------------------------------------
+-- Readability probe (/tdm diag)
+----------------------------------------------------------------------
+-- Reports whether C_DamageMeter fields come back readable or as secret values,
+-- reading the exact same session twice: once synchronously inside the event
+-- handler, once from a C_Timer.After(0) callback. That contrast is the whole
+-- reason the refresh path is structured the way it is, so it is worth being
+-- able to re-check it against any future build rather than assuming.
+
+local diagArmed = false
+
+local function ProbeSession(label)
+    local prefix = ns.L["ADDON_PREFIX"]
+    local ok, session = pcall(C_DamageMeter.GetCombatSessionFromType,
+        Enum.DamageMeterSessionType.Current, Enum.DamageMeterType.Dps)
+    if not ok or not session then
+        print(prefix .. label .. ": no session")
+        return
+    end
+    if issecretvalue(session) then
+        print(prefix .. label .. ": session = SECRET")
+        return
+    end
+    local sources = session.combatSources
+    if not sources or issecretvalue(sources) or #sources == 0 then
+        print(prefix .. label .. ": no combat sources")
+        return
+    end
+
+    local function tag(v)
+        if v == nil then return "nil" end
+        if issecretvalue(v) then return "|cffff5555SECRET|r" end
+        return "|cff55ff55readable|r"
+    end
+
+    local first = sources[1]
+    print(string.format("%s%s: name=%s total=%s rate=%s duration=%s",
+        prefix, label,
+        tag(first.name), tag(first.totalAmount),
+        tag(first.amountPerSecond), tag(session.durationSeconds)))
+end
 
 ----------------------------------------------------------------------
 -- Slash Commands
@@ -285,12 +409,19 @@ SlashCmdList["TDM"] = function(msg)
         for _, win in ipairs(ns.windows) do
             win.frame:SetShown(not win.frame:IsShown())
         end
+    elseif msg == "recap" then
+        if ns.ToggleRunRecap then ns.ToggleRunRecap() end
+    elseif msg == "diag" then
+        diagArmed = true
+        print(L["ADDON_PREFIX"] .. L["CMD_DIAG_ARMED"])
     elseif msg == "help" then
         print(L["ADDON_PREFIX"] .. L["CMD_HELP_HEADER"])
         print(L["CMD_HELP_TOGGLE"])
         print(L["CMD_HELP_TOGGLE_VIS"])
         print(L["CMD_HELP_RESET"])
         print(L["CMD_HELP_LOCK"])
+        print(L["CMD_HELP_RECAP"])
+        print(L["CMD_HELP_DIAG"])
         print(L["CMD_HELP_HELP"])
     else
         if ns.ToggleSettings then
