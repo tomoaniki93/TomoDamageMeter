@@ -532,12 +532,17 @@ local function CreateSettingsPanel()
         -- Report
         AddSection(L["REPORT"])
 
+        -- SAY and YELL are deliberately absent: the client only lets one such
+        -- message through per hardware event, so a multi-line report can never
+        -- arrive intact on them. See ns.RESTRICTED_CHANNELS in Core/Utils.lua.
         local channelOptions = {
-            { value = "SAY",     label = L["REPORT_CHANNEL_SAY"] },
-            { value = "PARTY",   label = L["REPORT_CHANNEL_PARTY"] },
-            { value = "RAID",    label = L["REPORT_CHANNEL_RAID"] },
-            { value = "GUILD",   label = L["REPORT_CHANNEL_GUILD"] },
-            { value = "WHISPER", label = L["REPORT_CHANNEL_WHISPER"] },
+            { value = "AUTO",          label = L["REPORT_CHANNEL_AUTO"] },
+            { value = "INSTANCE_CHAT", label = L["REPORT_CHANNEL_INSTANCE"] },
+            { value = "PARTY",         label = L["REPORT_CHANNEL_PARTY"] },
+            { value = "RAID",          label = L["REPORT_CHANNEL_RAID"] },
+            { value = "GUILD",         label = L["REPORT_CHANNEL_GUILD"] },
+            { value = "WHISPER",       label = L["REPORT_CHANNEL_WHISPER"] },
+            { value = "DEBUG",         label = L["REPORT_CHANNEL_SELF"] },
         }
         local channelDD = ns.Widgets.CreateDropdown(parent, L["SETTINGS_REPORT_CHANNEL"],
             channelOptions,

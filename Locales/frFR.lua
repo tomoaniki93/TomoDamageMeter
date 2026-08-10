@@ -58,6 +58,10 @@ L["REPORT_CHANNEL_PARTY"] = "Groupe"
 L["REPORT_CHANNEL_RAID"] = "Raid"
 L["REPORT_CHANNEL_GUILD"] = "Guilde"
 L["REPORT_CHANNEL_WHISPER"] = "Chuchoter"
+L["REPORT_CHANNEL_AUTO"] = "Auto (groupe)"
+L["REPORT_CHANNEL_INSTANCE"] = "Instance"
+L["REPORT_CHANNEL_SELF"] = "Afficher pour soi"
+L["REPORT_CHANNEL_RESTRICTED"] = "Dire et Crier sont restreints par le jeu : un seul message d'addon passe par clic. Choisissez un canal de groupe dans les réglages."
 
 -- Settings
 L["SETTINGS_TITLE"] = "Options TomoDamageMeter"
@@ -189,3 +193,5 @@ L["FONT_2002"] = "2002"
 L["FONT_MORPHEUS"] = "Morpheus"
 L["FONT_SKURRI"] = "Skurri"
 L["FILTER_PLAYERS"] = "Filtrer..."
+
+L["ADDON_PREFIX"] = "|cffe0115fTomo DM :|r "

@@ -344,7 +344,7 @@ function ns.CreateMeterWindow(cfg)
             print(L["ADDON_PREFIX"] .. L["REPORT_NO_DATA"])
             return
         end
-        local channel = ns.db.reportChannel or "SAY"
+        local channel = ns.db.reportChannel or "AUTO"
         local lines = ns.db.reportLines or 5
         ns.SendReport(snap, channel, lines)
     end)

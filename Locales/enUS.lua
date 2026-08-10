@@ -58,6 +58,10 @@ L["REPORT_CHANNEL_PARTY"] = "Party"
 L["REPORT_CHANNEL_RAID"] = "Raid"
 L["REPORT_CHANNEL_GUILD"] = "Guild"
 L["REPORT_CHANNEL_WHISPER"] = "Whisper"
+L["REPORT_CHANNEL_AUTO"] = "Auto (group)"
+L["REPORT_CHANNEL_INSTANCE"] = "Instance"
+L["REPORT_CHANNEL_SELF"] = "Print to self"
+L["REPORT_CHANNEL_RESTRICTED"] = "Say and Yell are restricted by the game: only one addon message gets through per click. Pick a group channel in the settings."
 
 -- Settings
 L["SETTINGS_TITLE"] = "TomoDamageMeter Settings"

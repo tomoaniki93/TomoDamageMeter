@@ -1,5 +1,41 @@
 # Changelog
 
+## v2.0.9
+
+Housekeeping pass: the settings sliders and the localisation gaps.
+
+### Config/Widgets.lua
+- `CreateSlider` moved from `MinimalSliderTemplate` to `OptionsSliderTemplate`. The minimal variant is driven by a mixin that expects to own its own value plumbing, and is not a supported target for a factory that configures the Slider directly.
+- The slider is now named. `OptionsSliderTemplate` names its FontStrings `$parentLow` and friends, and `$parent` has nothing to expand to when the slider itself is anonymous; a counter gives each one a unique name.
+- The template's `Low` / `High` / `Text` labels are blanked — this widget already draws its own title and value above the bar.
+- Range and value are applied twice, once immediately and once on the next frame. The template's own `OnLoad` / `OnShow` run after the factory returns and reset the range, so an immediate-only setup left sliders sitting at a template default. An `initializing` guard keeps that second pass from writing a clamped value back through the setter.
+- `Refresh` no longer round-trips through the setter either.
+
+### Locales (7 files)
+- deDE, esES, itIT, ptBR, ruRU, zhCN and zhTW were missing 13 keys each — everything added since the run recap and the diagnostics probe landed. Those clients fell back to English through the enUS layer, so nothing was broken, but nothing was translated either.
+- Added: `RUN_RECAP`, `RUN_RECAP_NO_DATA`, `RECAP_COL_INT`, `RECAP_COL_DEATHS`, `RECAP_COL_AVOIDABLE`, `SETTINGS_RUN_RECAP_AUTO`, `SETTINGS_SNAP`, `SETTINGS_FORMAT`, `FMT_3DEC`, `CMD_HELP_RECAP`, `CMD_HELP_DIAG`, `CMD_DIAG_ARMED`, `ADDON_PREFIX`.
+- `ADDON_PREFIX` was also missing from frFR. All nine files now carry the same 155 keys.
+
+## v2.0.8
+
+The report button raised `ADDON_ACTION_BLOCKED` and dropped most of its lines.
+
+### Core/Utils.lua
+- **Fix (report blocked)**: clicking Report produced `[ADDON_ACTION_BLOCKED] TomoDamageMeter: UNKNOWN()` several times over, and only part of the report reached chat.
+- Root cause: the default channel was `SAY`. Since patch 8.2.5 `SAY`, `YELL` and `CHANNEL` are gated behind a hardware event and let exactly one message through per event. A report is a header plus N lines, so the header went out on the click and every line after it was blocked. `pcall` is no help — a blocked call does not raise a Lua error, it fires the event — so the only fix is not to make the call.
+- `ns.RESTRICTED_CHANNELS` now names those three, and `SendReport` refuses them with an explanation instead of firing into the block.
+- New `AUTO` channel resolution: instance group → `INSTANCE_CHAT`, raid → `RAID`, party → `PARTY`, solo → printed locally. None of those are hardware-gated, so a report always arrives whole.
+- Sends now go through `C_ChatInfo.SendChatMessage` when the client has it. The global `SendChatMessage` is a deprecation shim in Midnight (`Blizzard_DeprecatedChatInfo`), which is why it appeared in the middle of the taint stack.
+
+### Core/Database.lua
+- Default report channel is `AUTO`, and a one-time migration moves anyone still on a restricted channel over to it. `SAY` was the factory default rather than a deliberate choice, and it could never have worked.
+
+### Config/ConfigUI.lua
+- Channel dropdown: `SAY` removed, `Auto (group)`, `Instance` and `Print to self` added.
+
+### Locales (9 files)
+- `REPORT_CHANNEL_AUTO`, `REPORT_CHANNEL_INSTANCE`, `REPORT_CHANNEL_SELF`, `REPORT_CHANNEL_RESTRICTED`.
+
 ## v2.0.7
 
 A `/reload` inside a dungeon wiped the whole run. It was the addon doing it, not the game.

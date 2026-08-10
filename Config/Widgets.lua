@@ -7,6 +7,19 @@ local ADDON_NAME, ns = ...
 ns.Widgets = {}
 
 -- Slider widget
+--
+-- OptionsSliderTemplate rather than MinimalSliderTemplate. The minimal variant
+-- is driven by a mixin that expects to own its own value plumbing, and it is
+-- not a supported target for a factory that configures the Slider directly;
+-- OptionsSliderTemplate is a plain Slider carrying three FontStrings, which is
+-- exactly what is wanted. Those labels are blanked because this widget draws
+-- its own title and value above the bar.
+--
+-- The template names those FontStrings "$parentLow" and friends, so the slider
+-- itself needs a name for the substitution to resolve against — hence the
+-- counter. Passing nil leaves $parent with nothing to expand to.
+local sliderCount = 0
+
 function ns.Widgets.CreateSlider(parent, label, min, max, step, getter, setter)
     local frame = CreateFrame("Frame", nil, parent)
     frame:SetHeight(50)
@@ -22,28 +35,48 @@ function ns.Widgets.CreateSlider(parent, label, min, max, step, getter, setter)
     valueText:SetTextColor(1.00, 1.00, 1.00)
     valueText:SetPoint("TOPRIGHT", 0, 0)
 
-    local slider = CreateFrame("Slider", nil, frame, "MinimalSliderTemplate")
+    sliderCount = sliderCount + 1
+    local slider = CreateFrame("Slider", "TomoDMSettingsSlider" .. sliderCount,
+        frame, "OptionsSliderTemplate")
     slider:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
     slider:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
     slider:SetHeight(16)
-    slider:SetMinMaxValues(min, max)
-    slider:SetValueStep(step)
     slider:SetObeyStepOnDrag(true)
-    slider:SetValue(getter())
+    if slider.Low  then slider.Low:SetText("")  end
+    if slider.High then slider.High:SetText("") end
+    if slider.Text then slider.Text:SetText("") end
 
     local fmtStr = step < 1 and "%.2f" or "%.0f"
     valueText:SetText(string.format(fmtStr, getter()))
 
+    -- The template's own OnLoad and OnShow run after this function returns and
+    -- put the range back to the template default, so the real values are
+    -- applied again on the next frame. `initializing` keeps that second pass
+    -- from writing a template-clamped value back through the setter.
+    local initializing = false
+    local function ApplyRange()
+        initializing = true
+        slider:SetMinMaxValues(min, max)
+        slider:SetValueStep(step)
+        slider:SetValue(getter())
+        initializing = false
+    end
+    ApplyRange()
+    C_Timer.After(0, ApplyRange)
+
     slider:SetScript("OnValueChanged", function(self, val)
+        if initializing then return end
         val = math.floor(val / step + 0.5) * step
-        valueText:SetText(string.format(step < 1 and "%.2f" or "%.0f", val))
+        valueText:SetText(string.format(fmtStr, val))
         setter(val)
     end)
 
     frame.slider = slider
     frame.Refresh = function()
+        initializing = true
         slider:SetValue(getter())
-        valueText:SetText(string.format(step < 1 and "%.2f" or "%.0f", getter()))
+        initializing = false
+        valueText:SetText(string.format(fmtStr, getter()))
     end
 
     return frame

@@ -15,7 +15,7 @@
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 2.0.7
+## Version: 2.0.9
 ## IconTexture: Interface\Icons\Inv12_apextalent_mage_firedup
 ## X-Curse-Project-ID: 1483230
 ## X-License: All Rights Reserved (bundled libraries keep their own — see THIRD-PARTY-LICENSES.md)

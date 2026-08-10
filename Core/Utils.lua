@@ -562,6 +562,39 @@ end
 -- Report to chat: send helper
 ----------------------------------------------------------------------
 
+-- Chat types the client gates behind a hardware event, and lets through only
+-- ONCE per event. A report is a header plus N lines, so on these channels the
+-- first message goes out and every one after it raises ADDON_ACTION_BLOCKED —
+-- which is what "TomoDamageMeter tried to call the protected function
+-- UNKNOWN() (x4)" was. pcall does not help: a blocked call does not raise a
+-- Lua error, it fires the event. The only fix is not to make the call.
+ns.RESTRICTED_CHANNELS = {
+    SAY     = true,
+    YELL    = true,
+    CHANNEL = true,
+}
+
+-- The global SendChatMessage is a deprecation shim in Midnight
+-- (Blizzard_DeprecatedChatInfo), which is why it showed up in the middle of
+-- the taint stack. Call the real entry point when the client has it.
+local function ChatSend(message, channel, target)
+    local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
+    pcall(send, message, channel, nil, target)
+end
+
+-- "AUTO" means "wherever the group actually is right now", which is what the
+-- report almost always wants and, conveniently, is never a restricted channel.
+function ns.ResolveReportChannel(channel)
+    if channel ~= "AUTO" then return channel end
+
+    local instanceCategory = (Enum and Enum.PartyCategory and Enum.PartyCategory.Instance)
+        or LE_PARTY_CATEGORY_INSTANCE
+    if instanceCategory and IsInGroup(instanceCategory) then return "INSTANCE_CHAT" end
+    if IsInRaid() then return "RAID" end
+    if IsInGroup() then return "PARTY" end
+    return "DEBUG"  -- solo: printing beats announcing to nobody
+end
+
 function ns.SendReport(snapshot, channel, maxLines)
     local L = ns.L
     local lines = snapshot.lines
@@ -569,23 +602,32 @@ function ns.SendReport(snapshot, channel, maxLines)
         lines = { unpack(lines, 1, maxLines) }
     end
 
+    channel = ns.ResolveReportChannel(channel or "AUTO")
+
+    if ns.RESTRICTED_CHANNELS[channel] then
+        print(L["ADDON_PREFIX"] .. L["REPORT_CHANNEL_RESTRICTED"])
+        return
+    end
+
     if channel == "DEBUG" then
         print(L["ADDON_PREFIX"] .. snapshot.header)
         for _, line in ipairs(lines) do
             print(L["ADDON_PREFIX"] .. line)
         end
-    else
-        local target = nil
-        if channel == "WHISPER" then
-            target = UnitIsPlayer("target") and GetUnitName("target", true) or nil
-            if not target or target == "" then
-                print(L["ADDON_PREFIX"] .. L["REPORT_NO_TARGET"])
-                return
-            end
+        return
+    end
+
+    local target = nil
+    if channel == "WHISPER" then
+        target = UnitIsPlayer("target") and GetUnitName("target", true) or nil
+        if not target or target == "" then
+            print(L["ADDON_PREFIX"] .. L["REPORT_NO_TARGET"])
+            return
         end
-        SendChatMessage(snapshot.header, channel, nil, target)
-        for _, line in ipairs(lines) do
-            SendChatMessage(line, channel, nil, target)
-        end
+    end
+
+    ChatSend(snapshot.header, channel, target)
+    for _, line in ipairs(lines) do
+        ChatSend(line, channel, target)
     end
 end

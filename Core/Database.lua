@@ -28,7 +28,17 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         ns.db.accentColor = ns.db.accentColor or { ns.ACCENT[1], ns.ACCENT[2], ns.ACCENT[3] }
         if ns.db.skin == nil then ns.db.skin = "DARK" end
         ns.db.barTexture = ns.db.barTexture or (ns.TEX_FLAT or "Tomo Flat")
-        ns.db.reportChannel = ns.db.reportChannel or "SAY"
+        ns.db.reportChannel = ns.db.reportChannel or "AUTO"
+        -- One-time migration off SAY. It was the factory default rather than
+        -- anyone's choice, and it cannot work: SAY is gated behind a hardware
+        -- event and only passes one message per event, so a multi-line report
+        -- always lost everything after its first line to ADDON_ACTION_BLOCKED.
+        if not ns.db.reportChannelMigrated then
+            if ns.RESTRICTED_CHANNELS[ns.db.reportChannel] then
+                ns.db.reportChannel = "AUTO"
+            end
+            ns.db.reportChannelMigrated = true
+        end
         ns.db.reportLines   = ns.db.reportLines   or 5
         ns.db.breakdownAlpha = ns.db.breakdownAlpha or 0.85
         if ns.db.autoResetOnInstance == nil then ns.db.autoResetOnInstance = true end
