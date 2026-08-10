@@ -193,21 +193,48 @@ end
 -- Auto-Reset on Instance Entry
 ----------------------------------------------------------------------
 
-local wasInInstance = false
-
+-- The reset has to fire when the player walks into a new instance, and never
+-- when the UI is reloaded inside one.
+--
+-- It used to do both. `wasInInstance` was a plain local, so /reload brought it
+-- back as false; the PLAYER_ENTERING_WORLD that always follows a reload then
+-- read as a fresh entry and called ResetAllCombatSessions(). The combat
+-- sessions themselves live on the client side and survive a reload perfectly
+-- well — the addon was throwing away data the game had kept, which is why a
+-- reload mid-key wiped the whole dungeon.
+--
+-- The instance identity is now stored in SavedVariables, which does survive
+-- the reload, and the reset only fires when that identity actually changes.
 local instanceFrame = CreateFrame("Frame")
 ns._instanceFrame = instanceFrame
 instanceFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-instanceFrame:SetScript("OnEvent", function(self, event)
-    local inInstance, instanceType = IsInInstance()
-    -- party = dungeon, raid = raid, scenario = scenario/delve
-    local isRelevant = inInstance and (instanceType == "party" or instanceType == "raid" or instanceType == "scenario")
-    if isRelevant and not wasInInstance then
-        if ns.db and ns.db.autoResetOnInstance then
-            C_DamageMeter.ResetAllCombatSessions()
-        end
+instanceFrame:SetScript("OnEvent", function(self, event, isInitialLogin, isReloadingUi)
+    if not ns.db then return end
+
+    local key = ns.GetInstanceKey()
+
+    if not key then
+        -- Outside a tracked instance: forget the last one, so walking back into
+        -- the same dungeon later still counts as a new entry and still resets.
+        ns.db.activeInstanceKey = nil
+        return
     end
-    wasInInstance = isRelevant or false
+
+    -- A reload keeps the client's sessions intact, so it can only ever mean
+    -- "still here" — adopt the key without touching the data.
+    if isReloadingUi then
+        ns.db.activeInstanceKey = key
+        return
+    end
+
+    if ns.db.activeInstanceKey == key then return end
+    ns.db.activeInstanceKey = key
+
+    -- On a fresh login the sessions are empty anyway; resetting would only
+    -- risk discarding data if the client kept any across the reconnect.
+    if ns.db.autoResetOnInstance and not isInitialLogin then
+        C_DamageMeter.ResetAllCombatSessions()
+    end
 end)
 
 ----------------------------------------------------------------------

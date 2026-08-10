@@ -172,6 +172,37 @@ function ns.StripRealm(name)
 end
 
 ----------------------------------------------------------------------
+-- Instance identity
+----------------------------------------------------------------------
+
+-- Instance types worth tracking. Everything else (world, arena, pvp) is
+-- ignored by both the auto-reset and the run recap.
+ns.TRACKED_INSTANCE_TYPES = {
+    party    = true,
+    raid     = true,
+    scenario = true,
+}
+
+-- Stable identifier for the instance the player is standing in, or nil when
+-- the current zone is not tracked.
+--
+-- This exists so "I walked into a new dungeon" can be told apart from "I
+-- reloaded the UI inside the dungeon I was already in". A Lua local cannot
+-- answer that question: /reload rebuilds the Lua state, so anything held in a
+-- local comes back at its default and the first PLAYER_ENTERING_WORLD after a
+-- reload looks exactly like a fresh entry. A string in SavedVariables does
+-- survive the reload, which is why the key is a string.
+function ns.GetInstanceKey()
+    local inInstance, instanceType = IsInInstance()
+    if not inInstance or not ns.TRACKED_INSTANCE_TYPES[instanceType] then
+        return nil
+    end
+    local ok, _, _, difficultyID, _, _, _, _, instanceID = pcall(GetInstanceInfo)
+    if not ok then return nil end
+    return instanceType .. ":" .. tostring(instanceID or 0) .. ":" .. tostring(difficultyID or 0)
+end
+
+----------------------------------------------------------------------
 -- Column value population
 ----------------------------------------------------------------------
 

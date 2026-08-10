@@ -1,5 +1,26 @@
 # Changelog
 
+## v2.0.7
+
+A `/reload` inside a dungeon wiped the whole run. It was the addon doing it, not the game.
+
+### Core/Database.lua
+- **Fix (reload wiped the dungeon)**: reloading the UI in a party, raid or scenario instance erased every combat session, so a mid-key `/reload` cost the entire run so far.
+- Root cause: the auto-reset tracked "am I already inside?" in a plain Lua local (`wasInInstance`). `/reload` rebuilds the Lua state, so that local came back as `false`, and the `PLAYER_ENTERING_WORLD` that always follows a reload read as a fresh zone-in and called `C_DamageMeter.ResetAllCombatSessions()`. The sessions themselves live on the client side and survive a reload perfectly well — the addon was discarding data the game had kept.
+- The instance identity now lives in `TomoDamageMeterDB.activeInstanceKey`, which does survive a reload, and the reset fires only when that identity actually changes. `PLAYER_ENTERING_WORLD`'s `isReloadingUi` argument short-circuits it as a second guard, and `isInitialLogin` no longer resets either — sessions are empty on a fresh login anyway, so the only thing a reset could do there is throw away data the client kept across a reconnect.
+- Walking out and back into the same dungeon still resets: leaving clears the saved key.
+
+### Modules/RunRecap.lua
+- **Fix (recap lost on reload)**: the accumulated run — every player, every per-pull snapshot — was held in a Lua local and did not survive a reload, so the end-of-run scoreboard came back empty or restarted from zero.
+- The in-progress run is now stored in `TomoDamageMeterDB.activeRun` as the live table, so every snapshot is already on disk by the time the next reload happens; SavedVariables are flushed on `/reload` too. There is no copy step and no save-on-a-timer.
+- On restore, only the clock is rebuilt: `GetTime()` counts from client start, so `startWall` (wall clock) is what proves how long ago the run began. A saved run older than four hours is discarded rather than resumed.
+- `CHALLENGE_MODE_START` now forces a fresh run (`StartRun(true)`); every other caller adopts the saved one for that instance instead of overwriting it. Activating a keystone still starts the clock from zero.
+- The finished run is frozen with its own `duration` and kept in `TomoDamageMeterDB.lastRun`, so `/tdm recap` and `TomoDamageMeter.GetRunSnapshot()` still answer after a reload.
+- The exit path can now close out a run left behind by a reload instead of dropping it: zoning out finalises it and writes it to history as usual.
+
+### Core/Utils.lua
+- New `ns.GetInstanceKey()` — a stable `instanceType:instanceID:difficultyID` string, shared by the auto-reset and the run recap so the two cannot disagree about what counts as the same dungeon.
+
 ## v2.0.6
 
 Fixes from a full in-game pass: two keystone runs, spell breakdowns and death recaps.

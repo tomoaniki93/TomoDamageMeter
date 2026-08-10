@@ -118,35 +118,86 @@ end
 -- Run lifecycle
 ----------------------------------------------------------------------
 
-local TRACKED_INSTANCES = {
-    party    = true,
-    raid     = true,
-    scenario = true,
-}
+local STALE_RUN_SECONDS = 4 * 60 * 60
 
-local function StartRun()
+local function ReadKeyLevel()
+    local ok, level = pcall(function() return C_ChallengeMode.GetActiveKeystoneInfo() end)
+    if ok and type(level) == "number" and level > 0 then return level end
+    return nil
+end
+
+-- Pick up an in-progress run left behind by a /reload.
+--
+-- The run table is kept in SavedVariables as the live table, so it comes back
+-- with every player and every snapshot already in it. Only the clock has to be
+-- rebuilt: GetTime() counts from client start, so its value from before the
+-- reload is still on the same scale, but the wall clock is what proves how long
+-- ago the run began, and it is the one that would also survive a relog.
+-- A nil `key` means "adopt whatever is saved", which is what the exit path
+-- needs: it runs from outside the instance, where there is no key to match.
+local function RestoreRun(key)
+    local saved = ns.db and ns.db.activeRun
+    if type(saved) ~= "table" then return nil end
+    if key and saved.key ~= key then return nil end
+    if type(saved.players) ~= "table" or type(saved.order) ~= "table" then return nil end
+
+    local elapsed = time() - (saved.startWall or time())
+    if elapsed < 0 or elapsed > STALE_RUN_SECONDS then
+        ns.db.activeRun = nil
+        return nil
+    end
+
+    saved.startTime = GetTime() - elapsed
+    saved.endTime   = nil
+    saved.duration  = nil
+    saved.keyLevel  = saved.keyLevel or ReadKeyLevel()
+    return saved
+end
+
+-- `forceNew` is passed by CHALLENGE_MODE_START: activating a keystone starts a
+-- run whatever was accumulated in the same instance beforehand. Every other
+-- caller is a zone-in, where an existing run for this instance must be adopted
+-- rather than overwritten.
+local function StartRun(forceNew)
+    local key = ns.GetInstanceKey()
+    if not key then
+        currentRun = nil
+        if ns.db then ns.db.activeRun = nil end
+        return
+    end
+
+    if not forceNew then
+        local restored = RestoreRun(key)
+        if restored then
+            currentRun = restored
+            return
+        end
+    end
+
     local ok, name, instanceType, difficultyID, _, _, _, _, instanceMapID = pcall(GetInstanceInfo)
-    if not ok or not TRACKED_INSTANCES[instanceType] then
+    if not ok then
         currentRun = nil
         return
     end
 
     currentRun = {
+        key          = key,
         mapID        = instanceMapID,
         zoneName     = name,
         instanceType = instanceType,
         difficultyID = difficultyID,
         startTime    = GetTime(),
+        startWall    = time(),
         players      = {},
         order        = {},
         snapshots    = 0,
+        keyLevel     = ReadKeyLevel(),  -- purely decorative
     }
 
-    -- Keystone level, when there is one. Purely decorative.
-    local okKey, level = pcall(function() return C_ChallengeMode.GetActiveKeystoneInfo() end)
-    if okKey and type(level) == "number" and level > 0 then
-        currentRun.keyLevel = level
-    end
+    -- The live run IS the saved one: no copy step, no save-on-a-timer. Every
+    -- snapshot written from here on is already on disk by the time the next
+    -- reload happens, because SavedVariables are flushed on /reload too.
+    if ns.db then ns.db.activeRun = currentRun end
 end
 
 local function SaveToHistory(run)
@@ -164,7 +215,7 @@ local function SaveToHistory(run)
     -- later "your DPS versus your last five runs here" can read it directly.
     local entry = {
         finished = time(),
-        duration = (run.endTime or GetTime()) - (run.startTime or GetTime()),
+        duration = run.duration or ((run.endTime or GetTime()) - (run.startTime or GetTime())),
         keyLevel = run.keyLevel,
         zoneName = run.zoneName,
         players  = {},
@@ -197,9 +248,18 @@ local function FinishRun()
     ns.RunRecapSnapshot()
 
     currentRun.endTime = GetTime()
+    -- Frozen once, here. A restored run has no usable GetTime() origin, so the
+    -- recap window and the public API both read this in preference to
+    -- recomputing from timestamps that may have crossed a reload.
+    currentRun.duration = currentRun.endTime - (currentRun.startTime or currentRun.endTime)
     lastRun = currentRun
     SaveToHistory(lastRun)
     currentRun = nil
+
+    if ns.db then
+        ns.db.activeRun = nil
+        ns.db.lastRun   = lastRun   -- so /tdm recap still works after a reload
+    end
 
     if #lastRun.order > 0 and (not ns.db or ns.db.runRecapAutoShow ~= false) then
         ns.ShowRunRecap()
@@ -221,7 +281,7 @@ local function CopyRun(run)
         mapID    = run.mapID,
         zoneName = run.zoneName,
         keyLevel = run.keyLevel,
-        duration = (run.endTime or GetTime()) - (run.startTime or GetTime()),
+        duration = run.duration or ((run.endTime or GetTime()) - (run.startTime or GetTime())),
         players  = {},
     }
     for _, guid in ipairs(run.order) do
@@ -241,7 +301,10 @@ local function CopyRun(run)
 end
 
 function ns.GetRunSnapshot()
-    return CopyRun(lastRun or currentRun)
+    -- The saved tail is the fallback: TomoScore may well ask for the run
+    -- during the very load that follows a reload, before any event has had a
+    -- chance to hand the in-memory copies back.
+    return CopyRun(lastRun or currentRun or (ns.db and (ns.db.activeRun or ns.db.lastRun)))
 end
 
 _G.TomoDamageMeter = _G.TomoDamageMeter or {}
@@ -465,7 +528,7 @@ local function LayoutRowColumns(row)
 end
 
 function ns.ShowRunRecap(run)
-    run = run or lastRun or currentRun
+    run = run or lastRun or currentRun or (ns.db and ns.db.lastRun)
     local frame = EnsureWindow()
 
     frame:SetBackdropColor(ns.BG[1], ns.BG[2], ns.BG[3], ns.db and ns.db.bgAlpha or ns.BG[4])
@@ -488,7 +551,7 @@ function ns.ShowRunRecap(run)
     local parts = {}
     if run.zoneName then parts[#parts + 1] = run.zoneName end
     if run.keyLevel then parts[#parts + 1] = "+" .. run.keyLevel end
-    local duration = (run.endTime or GetTime()) - (run.startTime or GetTime())
+    local duration = run.duration or ((run.endTime or GetTime()) - (run.startTime or GetTime()))
     parts[#parts + 1] = ns.FormatTimer(duration)
     frame._subFS:SetText(table.concat(parts, "  -  "))
 
@@ -552,20 +615,27 @@ runFrame:RegisterEvent("LFG_COMPLETION_REWARD")
 
 runFrame:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_ENTERING_WORLD" then
+        local key = ns.GetInstanceKey()
+
+        -- Adopt anything the reload left behind before deciding what to do, so
+        -- the exit path below closes the run out properly rather than dropping
+        -- it on the floor.
+        if not currentRun then
+            currentRun = RestoreRun(key)
+            if ns.db and lastRun == nil then lastRun = ns.db.lastRun end
+        end
+
         -- Doubles as the exit path: stepping out of the instance ends whatever
         -- run was open, which is the only "dungeon finished" signal a manual
         -- (non-keystone, non-LFG) run ever produces.
-        if currentRun then
-            local ok, _, instanceType = pcall(GetInstanceInfo)
-            if not ok or not TRACKED_INSTANCES[instanceType] then
-                FinishRun()
-                return
-            end
+        if currentRun and not key then
+            FinishRun()
+            return
         end
         StartRun()
 
     elseif event == "CHALLENGE_MODE_START" then
-        StartRun()
+        StartRun(true)
 
     elseif event == "CHALLENGE_MODE_COMPLETED" or event == "LFG_COMPLETION_REWARD" then
         FinishRun()
