@@ -20,12 +20,12 @@ ns.TEX_CHEVRON   = ADDON_TEX .. "chevron"
 ns.TEX_DETAILS   = ADDON_TEX .. "details"
 ns.TEX_TARGET    = ADDON_TEX .. "target"
 
--- Tomo palette (dark blue, TomoMythic style)
-ns.BG              = { 0.00, 0.00, 0.00, 0.80 }
-ns.HEADER_BG       = { 0.04, 0.08, 0.16, 1.00 }
-ns.BORDER_COLOR     = { 0.25, 0.25, 0.30, 0.70 }
-ns.DEFAULT_ACCENT   = { 0.33, 0.70, 0.00 }       -- apple green
-ns.ACCENT           = { 0.33, 0.70, 0.00, 1.00 }
+-- TDM identity: charcoal / white / red.
+ns.BG              = { 0.00, 0.00, 0.00, 0.84 }
+ns.HEADER_BG       = { 0.055, 0.055, 0.065, 1.00 }
+ns.BORDER_COLOR     = { 0.28, 0.28, 0.31, 0.78 }
+ns.DEFAULT_ACCENT   = { 0.88, 0.08, 0.18 }
+ns.ACCENT           = { 0.88, 0.08, 0.18, 1.00 }
 
 -- Text
 ns.TEXT_PRIMARY     = { 1.00, 1.00, 1.00 }
@@ -161,8 +161,8 @@ ns.CLASS_LUM = nil
 
 
 -- Interactive
-ns.HOVER_BG         = { 0.10, 0.22, 0.44, 0.40 }
-ns.HEADER_HOVER_BG  = { 0.10, 0.22, 0.44, 0.40 }
+ns.HOVER_BG         = { 0.45, 0.035, 0.075, 0.34 }
+ns.HEADER_HOVER_BG  = { 0.45, 0.035, 0.075, 0.34 }
 ns.BAR_ALPHA        = 0.5
 ns.ICON_ALPHA       = 0.7
 

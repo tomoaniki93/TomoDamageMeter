@@ -576,7 +576,7 @@ function ns.ShowRunRecap(run)
         row._bg:SetVertexColor(0, 0, 0, (i % 2 == 0) and 0.18 or 0)
 
         local cc = p.class and RAID_CLASS_COLORS[p.class]
-        row._nameFS:SetText(p.name or "?")
+        row._nameFS:SetText(string.format("%d. %s", i, p.name or "?"))
         row._nameFS:SetTextColor(cc and cc.r or 1, cc and cc.g or 1, cc and cc.b or 1)
 
         for m = 1, #METRICS do

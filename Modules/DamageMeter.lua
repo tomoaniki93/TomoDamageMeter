@@ -1,6 +1,12 @@
 local ADDON_NAME, ns = ...
 local L = ns.L
 
+local TDM_ROW_SHEEN = "Interface\\AddOns\\TomoDamageMeter\\Assets\\Textures\\TDM_RowSheen_256x32"
+local function PremiumRowSheenAlpha(isSpell)
+    if ns.db and (ns.db.skin or "DARK") ~= "DARK" then return 0 end
+    return isSpell and 0.025 or 0.075
+end
+
 ----------------------------------------------------------------------
 -- Window Factory
 ----------------------------------------------------------------------
@@ -227,8 +233,10 @@ function ns.CreateMeterWindow(cfg)
         state.sessionType = ns.SESSION_OPTIONS[nextIdx].type
         state.dataGeneration = state.dataGeneration + 1
         if ns.HideSpellBreakdown then ns.HideSpellBreakdown() end
+        state.ClearData()
         state.CollectData()
         state.UpdateHeader()
+        if ns.SyncCombatTickers then ns.SyncCombatTickers() end
     end)
 
     ----------------------------------------------------------------------
@@ -418,8 +426,10 @@ function ns.CreateMeterWindow(cfg)
         state.meterType = newType
         state.dataGeneration = state.dataGeneration + 1
         if ns.HideSpellBreakdown then ns.HideSpellBreakdown() end
+        state.ClearData()
         state.CollectData()
         state.UpdateHeader()
+        if ns.SyncCombatTickers then ns.SyncCombatTickers() end
     end)
 
     typeBtn:SetScript("OnClick", function()
@@ -435,8 +445,10 @@ function ns.CreateMeterWindow(cfg)
         state.meterType = cat.types[nextIdx].type
         state.dataGeneration = state.dataGeneration + 1
         if ns.HideSpellBreakdown then ns.HideSpellBreakdown() end
+        state.ClearData()
         state.CollectData()
         state.UpdateHeader()
+        if ns.SyncCombatTickers then ns.SyncCombatTickers() end
     end)
 
     ----------------------------------------------------------------------
@@ -605,6 +617,29 @@ function ns.CreateMeterWindow(cfg)
         bar:SetStatusBarTexture(ns.GetBarTexture())
         button.bar = bar
 
+        -- Static premium highlight. This asset already ships with VisualV2;
+        -- using it on rows costs no timer/animation and keeps the live meter
+        -- visually consistent with the red/chrome frame treatment.
+        local rowSheen = bar:CreateTexture(nil, "ARTWORK", nil, 0)
+        rowSheen:SetTexture(TDM_ROW_SHEEN)
+        rowSheen:SetAllPoints(bar)
+        rowSheen:SetBlendMode("ADD")
+        rowSheen:SetAlpha(PremiumRowSheenAlpha(false))
+        button.rowSheen = rowSheen
+
+        -- Dedicated rank field so the player's name and the values do not have
+        -- to carry the entire visual hierarchy. It is hidden for spell rows.
+        local rankFS = bar:CreateFontString(nil, "OVERLAY")
+        rankFS:SetFont(ns.GetFont(), math.max(8, ns.GetFontSize() - 1), "OUTLINE")
+        rankFS:SetJustifyH("RIGHT")
+        rankFS:SetWordWrap(false)
+        rankFS:SetShadowOffset(1, -1)
+        rankFS:SetShadowColor(0, 0, 0, 0.5)
+        rankFS:SetWidth(20)
+        rankFS:Hide()
+        button.rankFS = rankFS
+
+
         -- Name
         local nameFS = bar:CreateFontString(nil, "OVERLAY")
         -- ns.GetFontSize(), not the ns.BAR_FONT_SIZE constant: the constant is
@@ -641,10 +676,12 @@ function ns.CreateMeterWindow(cfg)
         button:HookScript("OnEnter", function(self)
             if self.fill then self.fill:SetAlpha(1) end
             if self.icon then self.icon:SetAlpha(1) end
+            if self.rowSheen then self.rowSheen:SetAlpha(self._isSpellRow and 0.05 or 0.15) end
         end)
         button:HookScript("OnLeave", function(self)
             if self.fill then self.fill:SetAlpha(ns.BAR_ALPHA) end
             if self.icon then self.icon:SetAlpha(ns.ICON_ALPHA) end
+            if self.rowSheen then self.rowSheen:SetAlpha(PremiumRowSheenAlpha(self._isSpellRow)) end
         end)
 
         -- Informative hover tooltip: headline stat + a top-spell sublist for
@@ -800,7 +837,10 @@ function ns.CreateMeterWindow(cfg)
             button.fill = button.bar:GetStatusBarTexture()
         end
 
+        button._isSpellRow = true
         if button.groupAccent then button.groupAccent:Show() end
+        if button.rankFS then button.rankFS:Hide() end
+        if button.rowSheen then button.rowSheen:SetAlpha(PremiumRowSheenAlpha(true)) end
 
         -- Empty placeholder ("no data" under an expanded player)
         if data.isEmpty then
@@ -901,6 +941,29 @@ function ns.CreateMeterWindow(cfg)
             return
         end
 
+        button._isSpellRow = false
+        if button.rowSheen then button.rowSheen:SetAlpha(PremiumRowSheenAlpha(false)) end
+
+        -- Ranking is plain Lua data assigned while the C_DamageMeter snapshot
+        -- is readable. Keep it in a separate field so pooled rows can switch
+        -- cleanly between player and inline-spell rendering.
+        local rank = elementData.rank
+        if button.rankFS and rank then
+            button.rankFS:SetText(tostring(rank) .. ".")
+            button.rankFS:Show()
+            if rank == 1 then
+                button.rankFS:SetTextColor(1.00, 0.16, 0.20)
+            elseif rank == 2 then
+                button.rankFS:SetTextColor(0.90, 0.90, 0.94)
+            elseif rank == 3 then
+                button.rankFS:SetTextColor(0.90, 0.52, 0.25)
+            else
+                ns.Tint(button.rankFS, "muted")
+            end
+        elseif button.rankFS then
+            button.rankFS:Hide()
+        end
+
         -- Player row: hide the group stripe unless this is the expanded player.
         if button.groupAccent then
             local isExpanded = false
@@ -957,6 +1020,7 @@ function ns.CreateMeterWindow(cfg)
             button.rateFS:SetFont(wantFont, wantSize, "OUTLINE")
             button.totalFS:SetFont(wantFont, wantSize, "OUTLINE")
             button.pctFS:SetFont(wantFont, wantSize, "OUTLINE")
+            if button.rankFS then button.rankFS:SetFont(wantFont, math.max(8, wantSize - 1), "OUTLINE") end
             button._fontPath, button._fontSize = wantFont, wantSize
         end
 
@@ -969,8 +1033,8 @@ function ns.CreateMeterWindow(cfg)
         -- Text colors
         ns.Tint(button.nameFS, "primary")
         ns.Tint(button.rateFS, "primary")
-        ns.Tint(button.totalFS, "primary")
-        ns.Tint(button.pctFS, "primary")
+        ns.Tint(button.totalFS, "secondary")
+        ns.Tint(button.pctFS, "muted")
 
         -- Icon + bar anchoring
         button.bar:ClearAllPoints()
@@ -989,11 +1053,17 @@ function ns.CreateMeterWindow(cfg)
             local iconSpace = ns.GetBarHeight() - ns.BAR_SPACING
             button.bar:SetPoint("TOPLEFT", iconSpace, 0)
             button.bar:SetPoint("BOTTOMRIGHT", 0, ns.BAR_SPACING)
-            button.nameFS:SetPoint("LEFT", button.bar, "LEFT", 4, ns.GetFontNudge())
         else
             button.icon:Hide()
             button.bar:SetPoint("TOPLEFT", 0, 0)
             button.bar:SetPoint("BOTTOMRIGHT", 0, ns.BAR_SPACING)
+        end
+        if button.rankFS and button.rankFS:IsShown() then
+            button.rankFS:ClearAllPoints()
+            button.rankFS:SetPoint("LEFT", button.bar, "LEFT", 4, ns.GetFontNudge())
+            button.rankFS:SetWidth(20)
+            button.nameFS:SetPoint("LEFT", button.rankFS, "RIGHT", 4, ns.GetFontNudge())
+        else
             button.nameFS:SetPoint("LEFT", button.bar, "LEFT", 6, ns.GetFontNudge())
         end
 
@@ -1027,16 +1097,21 @@ function ns.CreateMeterWindow(cfg)
     -- Data Collection
     ----------------------------------------------------------------------
 
+    function state.ClearData()
+        dataProvider:Flush()
+        state.elements = {}
+        selfBar._elementData = nil
+        SetSelfBarShown(false)
+    end
+
     function state.CollectData()
         local session = C_DamageMeter.GetCombatSessionFromType(state.sessionType, state.meterType)
-        dataProvider:Flush()
-
-        -- Default: no self bar this pass; re-enabled below if data + setting allow.
-        SetSelfBarShown(false)
-
-        if not session or issecretvalue(session) then return end
+        -- A transient unreadable result must never destroy the last good frame.
+        -- C_DamageMeter can briefly return nil/secret data outside its readable
+        -- event window; commit to the UI only after the replacement is valid.
+        if not session or issecretvalue(session) then return false end
         local sources = session.combatSources
-        if not sources or #sources == 0 then return end
+        if not sources or issecretvalue(sources) or #sources == 0 then return false end
 
         -- Session total for percentage
         local sessionTotal = 0
@@ -1059,6 +1134,7 @@ function ns.CreateMeterWindow(cfg)
             if i > maxEntries then break end
             local guid = source.sourceGUID
             elements[#elements + 1] = {
+                rank = i,
                 name = source.name,
                 classFilename = source.classFilename,
                 specIconID = source.specIconID,
@@ -1091,21 +1167,29 @@ function ns.CreateMeterWindow(cfg)
         -- report is a click handler, where a live query returns secrets).
         state.elements = elements
 
+        -- Commit only after the complete replacement snapshot exists. Until
+        -- this point the previous ScrollBox and pinned-self row stay untouched.
+        dataProvider:Flush()
+        selfBar._elementData = nil
+        SetSelfBarShown(false)
         dataProvider:InsertTable(elements)
+
 
         -- Pinned self bar: locate the local player anywhere in the full list
         -- (not just the visible top N) and mirror their row at the bottom.
         if ns.db and ns.db.showSelfBar then
-            local selfSource
-            for _, source in ipairs(sources) do
+            local selfSource, selfRank
+            for i, source in ipairs(sources) do
                 local isSelf = source.isLocalPlayer
                 if isSelf ~= nil and not issecretvalue(isSelf) and isSelf then
                     selfSource = source
+                    selfRank = i
                     break
                 end
             end
             if selfSource then
                 selfBar._elementData = {
+                    rank = selfRank,
                     name = selfSource.name,
                     classFilename = selfSource.classFilename,
                     specIconID = selfSource.specIconID,
@@ -1125,6 +1209,7 @@ function ns.CreateMeterWindow(cfg)
                 UpdateButton(selfBar, selfBar._elementData)
             end
         end
+        return true
     end
 
     -- Data pass. Deliberately synchronous.
@@ -1228,6 +1313,7 @@ function ns.CreateMeterWindow(cfg)
         frame = window,
         cfg = cfg,
         BumpGeneration = function() state.dataGeneration = state.dataGeneration + 1 end,
+        ClearData = state.ClearData,
         Refresh = state.ScheduleRefresh,
         UpdateTimer = function() state.UpdateTimer() end,
         UpdateHeader = function() state.UpdateHeader() end,
@@ -1236,19 +1322,33 @@ function ns.CreateMeterWindow(cfg)
             cfg.meterType = meterType
             state.dataGeneration = state.dataGeneration + 1
             if ns.HideSpellBreakdown then ns.HideSpellBreakdown() end
+            state.ClearData()
             state.CollectData()
             state.UpdateHeader()
+            if ns.SyncCombatTickers then ns.SyncCombatTickers() end
         end,
         SetSessionType = function(sessionType)
             state.sessionType = sessionType
             cfg.sessionType = sessionType
             state.dataGeneration = state.dataGeneration + 1
             if ns.HideSpellBreakdown then ns.HideSpellBreakdown() end
+            state.ClearData()
             state.CollectData()
             state.UpdateHeader()
+            if ns.SyncCombatTickers then ns.SyncCombatTickers() end
         end,
         GetMeterType = function() return state.meterType end,
         GetSessionType = function() return state.sessionType end,
+        SetSelfBarEnabled = function(shown)
+            if not shown then
+                selfBar._elementData = nil
+                SetSelfBarShown(false)
+                return
+            end
+            -- Enabling can opportunistically populate when the API is readable;
+            -- otherwise the next normal damage-meter event will do it.
+            state.CollectData()
+        end,
         -- Re-sync the header lock icon after cfg.locked was changed externally
         -- (slash command, settings checkbox).
         RefreshLockIcon = UpdateLockIcon,
@@ -1340,11 +1440,18 @@ function ns.CreateMeterWindow(cfg)
                     button.rateFS:SetFont(font, fs, "OUTLINE")
                     button.totalFS:SetFont(font, fs, "OUTLINE")
                     button.pctFS:SetFont(font, fs, "OUTLINE")
+                    if button.rankFS then button.rankFS:SetFont(font, math.max(8, fs - 1), "OUTLINE") end
                     button._fontPath, button._fontSize = font, fs
                     local prevFS = ns.AnchorColumns(button)
                     button.nameFS:ClearAllPoints()
-                    local pad = button.icon:IsShown() and 4 or 6
-                    button.nameFS:SetPoint("LEFT", button.bar, "LEFT", pad, nudge)
+                    if button.rankFS and button.rankFS:IsShown() then
+                        button.rankFS:ClearAllPoints()
+                        button.rankFS:SetPoint("LEFT", button.bar, "LEFT", 4, nudge)
+                        button.nameFS:SetPoint("LEFT", button.rankFS, "RIGHT", 4, nudge)
+                    else
+                        local pad = button.icon:IsShown() and 4 or 6
+                        button.nameFS:SetPoint("LEFT", button.bar, "LEFT", pad, nudge)
+                    end
                     if prevFS then
                         button.nameFS:SetPoint("RIGHT", prevFS, "LEFT", -4, 0)
                     else
@@ -1358,11 +1465,18 @@ function ns.CreateMeterWindow(cfg)
                 selfBar.rateFS:SetFont(font, fs, "OUTLINE")
                 selfBar.totalFS:SetFont(font, fs, "OUTLINE")
                 selfBar.pctFS:SetFont(font, fs, "OUTLINE")
+                if selfBar.rankFS then selfBar.rankFS:SetFont(font, math.max(8, fs - 1), "OUTLINE") end
                 selfBar._fontPath, selfBar._fontSize = font, fs
                 local prevSelfFS = ns.AnchorColumns(selfBar)
                 selfBar.nameFS:ClearAllPoints()
-                local selfPad = selfBar.icon:IsShown() and 4 or 6
-                selfBar.nameFS:SetPoint("LEFT", selfBar.bar, "LEFT", selfPad, nudge)
+                if selfBar.rankFS and selfBar.rankFS:IsShown() then
+                    selfBar.rankFS:ClearAllPoints()
+                    selfBar.rankFS:SetPoint("LEFT", selfBar.bar, "LEFT", 4, nudge)
+                    selfBar.nameFS:SetPoint("LEFT", selfBar.rankFS, "RIGHT", 4, nudge)
+                else
+                    local selfPad = selfBar.icon:IsShown() and 4 or 6
+                    selfBar.nameFS:SetPoint("LEFT", selfBar.bar, "LEFT", selfPad, nudge)
+                end
                 if prevSelfFS then
                     selfBar.nameFS:SetPoint("RIGHT", prevSelfFS, "LEFT", -4, 0)
                 else

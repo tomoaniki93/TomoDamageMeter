@@ -1,5 +1,208 @@
 # Changelog
 
+## v2.6.0
+
+Advanced Spell Details
+
+- **New** — Spell tooltips can now expose Blizzard's combatSpellDetails payload when it is readable: unit name, class, classification, pet/mob flags, amount and spec icon.
+- **New** — Unit detail rows show the amount attributed to that unit and its share of the selected spell when both values are readable.
+- **New** — Pet, creature and elite/rare/world-boss classifications are identified directly in the spell tooltip.
+- **Changed** — The existing spell tooltip is preserved when present; the advanced unit-detail block is appended underneath it.
+- **Changed** — Inline spell rows inherit their meter/session/source context so the same advanced tooltip can work there without changing the main DamageMeter renderer.
+- **Safety** — Every optional C_DamageMeter field is individually secret-value guarded. Unreadable data is skipped rather than used in Lua comparisons or arithmetic.
+- **Performance** — No CLEU, no combat-log parser, no ticker and no permanent OnUpdate. Unit details are queried lazily on hover and cached for the active Spell Breakdown context.
+- **Localization** — Added advanced spell-detail labels for all 9 supported locales, with an esMX fallback.
+
+## v2.5.0
+
+Corrective UX 
+
+### Meter modes
+- **New** — Added **Damage Done**, backed directly by `Enum.DamageMeterType.DamageDone`.
+- **New** — Added **Healing Done**, backed directly by `Enum.DamageMeterType.HealingDone`.
+- DPS and HPS remain the first entries of their categories, preserving the existing category-cycle behavior.
+- Reports treat Damage Done / Healing Done as cumulative totals rather than rate meters.
+
+### Sessions
+- **New** — Added **Previous Fight**, backed by `Enum.DamageMeterSessionType.Expired`.
+- Session cycling is now **Current → Previous Fight → Overall**.
+- Previous Fight is available everywhere the existing session selector is used, including the meter header and GUI window controls.
+
+### Localization
+- Added labels for the new modes/session for all nine supported TomoDamageMeter locales, plus an esMX fallback.
+- Localization is provided by a small extension file so the already-tested 2.4.x locale files are not rewritten.
+
+### Compatibility / safety
+- Uses only Blizzard's native `C_DamageMeter` enums and the addon's existing data path.
+- No CLEU, no `COMBAT_LOG_EVENT_UNFILTERED`, no `CombatLogGetCurrentEventInfo()`, no new combat polling and no new ticker.
+
+## v2.4.1
+
+Corrective UX pass based on the first in-game 2.4.0 test.
+
+- **Fixed** — The settings panel now always keeps the TDM Red product identity. Meter skins no longer recolour the settings chrome or border.
+- **Changed** — General settings are reorganized into two compact columns so the default page fits without scrolling at normal UI sizes.
+- **Changed** — Scrollable settings pages now expose a thin red scrollbar only when content actually overflows.
+- **Fixed** — The minimap button now follows the minimap's outer ellipse with additional edge spacing, matching normal minimap-button placement more closely.
+- **Changed** — Minimap positioning now accounts for the configured button scale while preserving the saved angle and 360-degree drag behavior.
+- **Technical** — No combat collection, C_DamageMeter behavior, CLEU handling, timers or permanent OnUpdate paths were changed.
+
+## v2.4.0
+
+Interactive pull / combat-segment comparison.
+
+### Pull Compare
+- New `Modules/PullCompare.lua`: compare any two completed combat segments side by side.
+- Two independent A/B segment selectors with boss/trash labels and durations, plus quick swap and refresh controls.
+- Damage and Healing modes use the built-in segment APIs and compare normalized per-second output player by player.
+- Clicking a player drills into a spell-by-spell comparison for the same two segments, using the existing `GetSpellBreakdownBySegment()` bridge.
+- Player and spell tables show A, B and percentage delta; totals remain available from the player-row context tooltip.
+- Integrated `Compare` shortcut in Target Breakdown and direct `/tdm pulls` / `/tdm compare` access.
+- Compact built-in labels cover all nine supported locales.
+- No combat event listener, ticker, polling loop or permanent `OnUpdate` is added. The tool only queries historical segments when explicitly opened/refreshed by the player.
+- No new graphical asset is added; `Assets/Textures` remains TGA-only.
+
+## v2.3.0
+
+Interactive Run History and run-vs-run comparison.
+
+### Run History
+- New `Modules/RunHistory.lua`: dedicated premium history browser built entirely from RunRecap SavedVariables.
+- Browse the stored runs for each dungeon with previous/next dungeon navigation.
+- Filter a dungeon's history by keystone level or show all stored levels.
+- Up to 10 stored runs per dungeon are shown with date, key level, duration, DPS, HPS, interrupts, deaths and avoidable damage for the current character.
+- Select any two completed runs as A and B and compare every tracked metric side by side.
+- Delta colours understand metric direction: more DPS/HPS/interrupts is good; fewer deaths/avoidable damage and a shorter duration are good.
+- Window position is saved and restored across reloads.
+- Direct access with `/tdm history`; the command is also appended to `/tdm help`.
+- No `C_DamageMeter` read, ticker, timer or permanent `OnUpdate` is added; the browser is a pure history/UI consumer.
+- Built-in compact labels cover all nine supported locales.
+
+### Performance panel
+- The Patch 6 Performance card now includes a localized `View history` button.
+- Opening history from the Performance card automatically selects the dungeon belonging to the displayed run.
+- Performance card height was extended to keep the new action visually separate from the comparison table.
+
+## v2.2.0
+
+Premium meter rows and personal run comparison.
+
+### Meter rows
+- Player rows now show a dedicated rank column (`1.`, `2.`, `3.` …) instead of making the player name carry all visual hierarchy.
+- Top-three ranks receive restrained TDM medal colours while names remain high-contrast.
+- Main values use a clearer hierarchy: primary rate, secondary total, muted percentage.
+- The existing `TDM_RowSheen_256x32.tga` is now used as a very low-alpha static highlight on player rows; inline spell rows remain deliberately quieter.
+- The pinned self row keeps the player's real ranking from the full session.
+- No new ticker, timer or `OnUpdate` is introduced by the row polish.
+
+### Run Recap / Run Compare
+- New `Modules/RunCompare.lua`: a premium personal-performance card attached directly above Run Recap.
+- Compares the current run with up to five previous runs on the same map: Current / Avg. 5 / Best / Delta.
+- Metrics: DPS, HPS, interrupts, deaths, avoidable damage and completion time.
+- Improvement-aware delta colours: higher is better for DPS/HPS/interrupts; lower is better for deaths/avoidable/time.
+- Uses only the plain-number history already captured by RunRecap. It never calls `C_DamageMeter`, so it adds no secret-value risk and no combat-path polling.
+- Automatically follows and hides with the existing Run Recap window.
+- Compact built-in labels cover all nine supported locales without expanding the locale files for this self-contained panel.
+- Run Recap scoreboard names now include their visible ranking number.
+
+## v2.1.3
+
+HUD visual polish pass, bringing the live addon closer to the TDM red/white mockup.
+
+### Premium TDM chrome
+- New `Modules/VisualV2.lua` decorates meter windows, Spell Breakdown, Target Breakdown, Death Recap, Run Recap and the V2 settings panel with one shared visual language.
+- Static red/chrome top edge, subtle frame glow, inner header separator and low-alpha TDM watermark.
+- Decorations are allocated once per window. There is no permanent `OnUpdate`, ticker or animation loop.
+- Skin changes refresh only the decoration colours; non-TDM skins reuse their active accent instead of being forced red.
+
+### GUI V2
+- Buttons now receive a subtle metallic sheen.
+- Dashboard/window cards gain a restrained gloss and red top accent, closer to the visual mockup without reducing text contrast.
+
+### Assets
+- Added `TDM_FrameGlow_128.tga`.
+- Added `TDM_HeaderSheen_256x32.tga`.
+- Added `TDM_RowSheen_256x32.tga`.
+- As with the rest of the in-game media pack, every new file in `Assets/Textures` is TGA.
+
+## v2.1.2
+
+Official TDM HD branding and in-game texture pack.
+
+### Assets/Textures
+- New official red/white/chrome TDM identity, generated from one master emblem for consistent rendering.
+- Added 16, 32, 64, 128 and 256 px TDM icon variants as 32-bit `.tga`.
+- Added a dedicated round 64 px minimap `.tga`.
+- Added 256×128 and 1024×512 transparent logo `.tga` assets.
+- `Assets/Textures` contains no PNG branding assets; game-facing artwork remains TGA-only.
+
+### Minimap / Addon list
+- The minimap button now uses the dedicated TDM round asset instead of a Blizzard spell icon.
+- Removed the redundant Blizzard tracking border and text overlay; the artwork supplies its own ring and TDM mark.
+- The TOC `IconTexture` now points at the packaged TDM 64 px TGA, so the addon list / compartment uses the same identity.
+
+### GUI V2
+- The settings header now displays the official TDM logo texture instead of the plain `TDM` text label.
+
+## v2.1.1
+
+Native minimap button and Blizzard Addon Compartment support.
+
+### Modules/Minimap.lua
+- New dependency-free TDM minimap button with a compact red/white identity.
+- Left click opens the TDM settings panel.
+- Right click opens a quick-action menu: settings, show/hide meters, lock/unlock all, reset combat data and Run Recap.
+- Left-button drag moves the icon through the full 360° around the minimap; the saved angle survives reloads.
+- Position automatically follows minimap size changes and the button has no permanent OnUpdate — updates run only while dragging.
+- Saved minimap scale (70–150%) and visibility.
+- Hiding the minimap button is recoverable from the GUI and from Blizzard's Addon Compartment.
+
+### Config/ConfigUIV2.lua
+- New Minimap page with show/hide, scale, restore-position and show/hide-meter controls.
+- The Dashboard/GUI remains available even when the minimap button is disabled.
+
+### Addon Compartment
+- TDM now registers in Blizzard's Addon Compartment through TOC metadata.
+- Left click opens settings; right click toggles all meter windows.
+
+## v2.1.0
+
+GUI V2 and TDM visual identity.
+
+### Config/ConfigUIV2.lua
+- New persistent 760×570 settings interface with a red/white TDM identity and left navigation.
+- New Dashboard with meter visibility, active window count, active skin and a live window overview.
+- Quick actions: show/hide all meters, lock/unlock all windows, reset combat data and open Run Recap.
+- General page keeps the existing behavior controls, modules, categories and column formatting.
+- Appearance page groups skin, texture, font, sizing and opacity controls.
+- Windows page manages all five meter windows from one place: add/remove, meter type, session and lock state.
+- Reports page isolates report channel and line-count configuration.
+- The previous ConfigUI remains loaded as a dormant fallback; V2 overrides only the public settings entry points.
+
+### Visual identity
+- The default DARK preset is now `TDM Red`: neutral charcoal surfaces, white text and a red accent.
+- Existing users still on the untouched old green DARK accent are migrated once to the new red default; deliberate custom accent colours are preserved.
+- All nine locales receive the new Dashboard labels and the renamed default skin.
+
+### QoL
+- Disabling the pinned self bar now hides it immediately without requiring a readable C_DamageMeter refresh.
+
+## v2.0.10
+
+Stability pass: preserve valid meter data, unify window visibility and stop hidden-window refresh work.
+
+### Modules/DamageMeter.lua
+- **Fix (damage rows disappearing)**: `CollectData()` no longer flushes the ScrollBox before validating the new `C_DamageMeter` session. A transient `nil`, secret session, secret source table or empty source list now leaves the last valid snapshot on screen instead of blanking the meter.
+- A real reset or an explicit meter/session change still clears the old snapshot immediately, so stale DPS can never be displayed under another view.
+- The pinned self row is cleared only when a new valid snapshot is committed, not on a transient failed read.
+
+### Core/Database.lua
+- Added one persisted `windowsVisible` state for all meter windows. `/tdm toggle` now shows or hides the whole meter deterministically instead of flipping every frame independently.
+- Normal combat updates only rebuild visible meter windows. The final `PLAYER_REGEN_ENABLED` pass still refreshes every window once inside the readable event context, so a hidden meter has a current snapshot when it is shown after combat.
+- The 1-second Actions ticker now refreshes only visible Interrupts / Dispels / Deaths windows.
+- The combat timer ticker now runs only while at least one visible DPS/HPS window needs it, and updates only those eligible windows.
+- Ticker state is re-synchronised when the meter type or global visibility changes during combat.
+
 ## v2.0.9
 
 Housekeeping pass: the settings sliders and the localisation gaps.

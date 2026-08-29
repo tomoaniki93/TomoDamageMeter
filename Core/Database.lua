@@ -44,6 +44,7 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         if ns.db.autoResetOnInstance == nil then ns.db.autoResetOnInstance = true end
         if ns.db.showCombatTimer == nil then ns.db.showCombatTimer = true end
         if ns.db.showSelfBar == nil then ns.db.showSelfBar = false end
+        if ns.db.windowsVisible == nil then ns.db.windowsVisible = true end
         if ns.db.showBarTooltips == nil then ns.db.showBarTooltips = true end
         if ns.db.combatTimerPos == nil then ns.db.combatTimerPos = "RIGHT" end
 
@@ -52,6 +53,22 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
 
         -- Category visibility (empty = all enabled)
         if not ns.db.disabledCategories then ns.db.disabledCategories = {} end
+
+        -- v2.1 visual identity migration.  Only replace the exact historical
+        -- factory accent: a user-picked colour must never be overwritten.
+        if not ns.db.tdmVisualV2 then
+            local c = ns.db.accentColor
+            local oldFactoryGreen = type(c) == "table"
+                and math.abs((c[1] or 0) - 0.33) < 0.015
+                and math.abs((c[2] or 0) - 0.70) < 0.015
+                and math.abs((c[3] or 0) - 0.00) < 0.015
+            if ns.db.skin == "DARK" and oldFactoryGreen then
+                ns.db.accentColor = { 0.88, 0.08, 0.18 }
+                ns.db.bgAlpha = 0.84
+                ns.db.barTexture = ns.TEX_SMOOTH or "Tomo Smooth"
+            end
+            ns.db.tdmVisualV2 = true
+        end
 
         ns.ApplyAccentColor()
 
@@ -119,6 +136,7 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
             end
             local win = ns.CreateMeterWindow(cfg)
             table.insert(ns.windows, win)
+            win.frame:SetShown(ns.db.windowsVisible)
             win.Refresh()
             C_Timer.After(0, win.UpdateHeader)
         end
@@ -129,6 +147,9 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
 
         -- Enforce: switch any window showing a disabled category
         ns.EnforceEnabledTypes()
+
+        -- Minimap state depends on SavedVariables, so create it only now.
+        if ns.InitializeMinimap then ns.InitializeMinimap() end
 
     elseif event == "PLAYER_LEAVING_WORLD" then
         -- Save positions on every zone transition (in case of crash)
@@ -179,6 +200,7 @@ function ns.CreateNewWindow()
     table.insert(ns.db.windowConfigs, cfg)
     local win = ns.CreateMeterWindow(cfg)
     table.insert(ns.windows, win)
+    win.frame:SetShown(ns.db.windowsVisible)
     win.Refresh()
     C_Timer.After(0, win.UpdateHeader)
     return true
@@ -264,15 +286,93 @@ local refreshTicker = nil
 ns._timerTicker = nil
 ns._refreshTicker = nil
 
+local function IsWindowVisible(win)
+    return win and win.frame and win.frame:IsShown()
+end
+
+
 -- Returns true if any visible window is showing an ACTIONS-type meter
 -- (Interrupts, Dispels, Deaths) — these don't fire DAMAGE_METER_* update events
 -- and require a periodic refresh. Other types are event-driven and don't need it.
 local function NeedsPeriodicRefresh()
     for _, win in ipairs(ns.windows) do
-        if ns.ACTIONS_TYPES[win.GetMeterType()] then return true end
+        if IsWindowVisible(win) and ns.ACTIONS_TYPES[win.GetMeterType()] then
+            return true
+        end
     end
     return false
 end
+
+local function NeedsCombatTimer()
+    if not (ns.db and ns.db.showCombatTimer) then return false end
+    for _, win in ipairs(ns.windows) do
+        if IsWindowVisible(win) and ns.RATE_PRIMARY[win.GetMeterType()] then
+            return true
+        end
+    end
+    return false
+end
+
+local function RefreshVisibleActionWindows()
+    for _, win in ipairs(ns.windows) do
+        if IsWindowVisible(win) and ns.ACTIONS_TYPES[win.GetMeterType()] then
+            win.Refresh()
+        end
+    end
+end
+
+local function RefreshVisibleTimers()
+    if not (ns.db and ns.db.showCombatTimer) then return end
+    for _, win in ipairs(ns.windows) do
+        if IsWindowVisible(win) and ns.RATE_PRIMARY[win.GetMeterType()] then
+            win.UpdateTimer()
+        end
+    end
+end
+
+-- Keep the combat tickers matched to what can actually be seen. This helper is
+-- also called when a window changes meter type or when /tdm toggle changes the
+-- global visibility while combat is already running.
+local function SyncCombatTickers()
+    if not ns.inCombat then
+        if timerTicker then
+            timerTicker:Cancel()
+            timerTicker = nil
+            ns._timerTicker = nil
+        end
+        if refreshTicker then
+            refreshTicker:Cancel()
+            refreshTicker = nil
+            ns._refreshTicker = nil
+        end
+        return
+    end
+
+    if NeedsCombatTimer() then
+        if not timerTicker then
+            timerTicker = C_Timer.NewTicker(1, RefreshVisibleTimers)
+            ns._timerTicker = timerTicker
+        end
+    elseif timerTicker then
+        timerTicker:Cancel()
+        timerTicker = nil
+        ns._timerTicker = nil
+    end
+
+    if NeedsPeriodicRefresh() then
+        if not refreshTicker then
+            refreshTicker = C_Timer.NewTicker(1, RefreshVisibleActionWindows)
+            ns._refreshTicker = refreshTicker
+        end
+    elseif refreshTicker then
+        refreshTicker:Cancel()
+        refreshTicker = nil
+        ns._refreshTicker = nil
+    end
+end
+
+ns.SyncCombatTickers = SyncCombatTickers
+
 
 ----------------------------------------------------------------------
 -- Throttled Refresh (combat-only, 150ms interval)
@@ -287,12 +387,16 @@ local refreshing = false
 -- The single data pass. Every caller must reach this from inside an event
 -- handler: C_DamageMeter returns readable values there and secret values from a
 -- timer callback, so anything deferred loses the ability to do Lua-side maths.
-local function DoRefresh()
+local function DoRefresh(forceAll)
     if refreshing then return end
     refreshing = true
     lastRefreshTime = GetTime()
 
-    for _, win in ipairs(ns.windows) do win.Refresh() end
+    for _, win in ipairs(ns.windows) do
+        if forceAll or IsWindowVisible(win) then
+            win.Refresh()
+        end
+    end
 
     -- The segment browser re-queries one session per segment and rebuilds its
     -- whole data provider, so it gets its own, slower gate. On the old deferred
@@ -329,43 +433,33 @@ dmEventFrame:SetScript("OnEvent", function(self, event)
         if ns.HideTargetBreakdown then ns.HideTargetBreakdown() end
         for _, win in ipairs(ns.windows) do
             win.BumpGeneration()
-            win.Refresh()
+            if win.ClearData then win.ClearData() end
         end
     elseif event == "PLAYER_REGEN_DISABLED" then
         ns.inCombat = true
         for _, win in ipairs(ns.windows) do
-            win.SetCombatAlpha(true)
+            if IsWindowVisible(win) then
+                win.SetCombatAlpha(true)
+            end
         end
-        if not timerTicker then
-            timerTicker = C_Timer.NewTicker(1, function()
-                for _, win in ipairs(ns.windows) do win.UpdateTimer() end
-            end)
-            ns._timerTicker = timerTicker
-        end
-        -- The one data pass that cannot run in-handler: ACTIONS meters
-        -- (Interrupts / Dispels / Deaths) emit no DAMAGE_METER_* event, so there
-        -- is nothing to hook. Values read here are secret, which is tolerable
-        -- because that category renders its total through SetFormattedText — a
-        -- C-side setter that accepts secrets. Everything else is event-driven.
-        if not refreshTicker and NeedsPeriodicRefresh() then
-            refreshTicker = C_Timer.NewTicker(1, function()
-                for _, win in ipairs(ns.windows) do win.Refresh() end
-            end)
-            ns._refreshTicker = refreshTicker
-        end
-        for _, win in ipairs(ns.windows) do win.UpdateTimer() end
+        SyncCombatTickers()
+        RefreshVisibleTimers()
     elseif event == "PLAYER_REGEN_ENABLED" then
         ns.inCombat = false
         for _, win in ipairs(ns.windows) do
-            win.SetCombatAlpha(false)
+            if IsWindowVisible(win) then
+                win.SetCombatAlpha(false)
+            end
         end
-        if timerTicker then timerTicker:Cancel(); timerTicker = nil; ns._timerTicker = nil end
-        if refreshTicker then refreshTicker:Cancel(); refreshTicker = nil; ns._refreshTicker = nil end
-        for _, win in ipairs(ns.windows) do win.UpdateTimer() end
+        SyncCombatTickers()
+        RefreshVisibleTimers()
         -- Trailing-edge pass: picks up whatever the throttle dropped in the
         -- last interval of the fight, and re-renders now that names resolve.
+        -- Force all windows once here: this is still a readable event context,
+        -- so a meter hidden during the fight has a fresh cached/rendered snapshot
+        -- waiting if the player shows it afterwards.
         lastRefreshTime = 0
-        DoRefresh()
+        DoRefresh(true)
         -- Capture the run totals while still inside this handler. Nothing
         -- outside a handler can read these values; see Modules/RunRecap.lua.
         if ns.RunRecapSnapshot then ns.RunRecapSnapshot() end
@@ -427,6 +521,21 @@ end
 -- Slash Commands
 ----------------------------------------------------------------------
 
+function ns.SetWindowsVisible(shown)
+    if not ns.db then return end
+    shown = shown and true or false
+    ns.db.windowsVisible = shown
+
+    for _, win in ipairs(ns.windows) do
+        if win.frame then
+            win.frame:SetShown(shown)
+        end
+    end
+
+    SyncCombatTickers()
+end
+
+
 SLASH_TDM1 = "/tdm"
 SLASH_TDM2 = "/tomodm"
 SlashCmdList["TDM"] = function(msg)
@@ -443,9 +552,7 @@ SlashCmdList["TDM"] = function(msg)
         end
         print(L["ADDON_PREFIX"] .. (target and L["CMD_LOCKED"] or L["CMD_UNLOCKED"]))
     elseif msg == "toggle" then
-        for _, win in ipairs(ns.windows) do
-            win.frame:SetShown(not win.frame:IsShown())
-        end
+        ns.SetWindowsVisible(not ns.db.windowsVisible)
     elseif msg == "recap" then
         if ns.ToggleRunRecap then ns.ToggleRunRecap() end
     elseif msg == "diag" then

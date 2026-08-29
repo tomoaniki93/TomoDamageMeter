@@ -1,5 +1,5 @@
 ## Interface: 120100, 120007
-## 
+##
 ## Title: |cffCC44FFTomo|r|cffFFFFFFDamageMeter|r
 ## Notes: Standalone Damage Meter addon.
 ## Notes-frFR: Compteur de dégâts autonome.
@@ -11,12 +11,15 @@
 ## Notes-zhCN: 独立伤害统计插件。
 ## Notes-zhTW: 獨立傷害統計插件。
 ## Category: |cffCC44FFTomo|r|cffFFFFFFSuite|r
-## 
+##
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 2.0.9
-## IconTexture: Interface\Icons\Inv12_apextalent_mage_firedup
+## Version: 2.7.1
+## IconTexture: Interface\AddOns\TomoDamageMeter\Assets\Textures\TDM_Icon_64.tga
+## AddonCompartmentFunc: TomoDamageMeter_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: TomoDamageMeter_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: TomoDamageMeter_OnAddonCompartmentLeave
 ## X-Curse-Project-ID: 1483230
 ## X-License: All Rights Reserved (bundled libraries keep their own — see THIRD-PARTY-LICENSES.md)
 
@@ -34,22 +37,32 @@ Locales\ptBR.lua
 Locales\zhCN.lua
 Locales\zhTW.lua
 Locales\ruRU.lua
+Locales\MeterModes.lua
+Locales\SpellDetails.lua
 
 Modules\Style.lua
 Modules\Skins.lua
 
 Core\Init.lua
+Core\MeterModes.lua
 Core\Utils.lua
 Core\Database.lua
-
 Modules\SpellBridge.lua
 Modules\SpellBreakdown.lua
+Modules\SpellDetails.lua
 Modules\TargetBreakdown.lua
 Modules\DeathRecap.lua
 Modules\DamageMeter.lua
 Modules\RunRecap.lua
+Modules\RunHistory.lua
+Modules\PullCompare.lua
+Modules\RunCompare.lua
 Modules\Snap.lua
+Modules\Minimap.lua
+Modules\VisualV2.lua
+Modules\MeterUIV3.lua
+Modules\SecondaryUIV3.lua
 
 Config\Widgets.lua
 Config\ConfigUI.lua
-
+Config\ConfigUIV2.lua
