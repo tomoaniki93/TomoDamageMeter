@@ -52,6 +52,13 @@ local function AccentColor(alpha)
     return a[1] or 0.96, a[2] or 0.035, a[3] or 0.085, alpha or a[4] or 1
 end
 
+local function RowColor(classFile)
+    if ns.db and ns.db.accentUseClassColor then
+        return ns.ClassColor(classFile)
+    end
+    return AccentColor(1)
+end
+
 local function TextColor(role)
     local map = {
         primary = ns.TEXT_PRIMARY,
@@ -174,13 +181,13 @@ function ns.CreateMeterWindow(cfg)
     glow:SetBlendMode("ADD")
     glow:SetAlpha(0.22)
 
-    local topAccent = window:CreateTexture(nil, "OVERLAY", nil, 7)
+    local topAccent = window:CreateTexture(nil, "OVERLAY", nil, 6)
     topAccent:SetTexture(ns.FLAT)
     topAccent:SetHeight(2)
     topAccent:SetPoint("TOPLEFT", window, "TOPLEFT", 0, 0)
     topAccent:SetPoint("TOPRIGHT", window, "TOPRIGHT", 0, 0)
 
-    local hotCap = window:CreateTexture(nil, "OVERLAY", nil, 8)
+    local hotCap = window:CreateTexture(nil, "OVERLAY", nil, 7)
     hotCap:SetTexture(ns.FLAT)
     hotCap:SetSize(54, 1)
     hotCap:SetPoint("TOPLEFT", window, "TOPLEFT", 8, -1)
@@ -305,9 +312,14 @@ function ns.CreateMeterWindow(cfg)
     local sessionText = MakeFont(sessionBtn, 7, "secondary", "CENTER")
     sessionText:SetPoint("CENTER", 0, 0)
 
-    local timerFS = MakeFont(header, 9, "secondary", "RIGHT")
-    timerFS:SetPoint("LEFT", sessionBtn, "RIGHT", 5, 0)
-    timerFS:SetWidth(42)
+    local timerBox = CreateFrame("Frame", nil, header, "BackdropTemplate")
+    timerBox:SetSize(48, 18)
+    SetBackdrop(timerBox, 0.025, 0.025, 0.032, 0.92, 0.18, 0.18, 0.21, 0.84)
+    timerBox:Hide()
+
+    local timerFS = MakeFont(timerBox, 9, "secondary", "CENTER")
+    timerFS:SetPoint("CENTER", 0, 0)
+    timerFS:SetWidth(44)
 
     local actionButtons = {}
     local function MakeHeaderAction(texPath, tooltip)
@@ -355,6 +367,51 @@ function ns.CreateMeterWindow(cfg)
             btn:SetPoint("RIGHT", ordered[i - 1], "LEFT", -BUTTON_GAP, 0)
         end
     end
+
+    -- The action cluster owns the right side of the header. The timer now lives
+    -- on the lower text row instead of trying to squeeze between the session
+    -- button and the actions. This keeps it readable at the 300 px minimum
+    -- width and makes LEFT / RIGHT a real positional choice.
+    local function LayoutHeader()
+        local width = math.max(MIN_WIDTH, header:GetWidth() or MIN_WIDTH)
+        local actionWidth = #ordered * BUTTON_SIZE + (#ordered - 1) * BUTTON_GAP
+        local actionLeft = width - HEADER_PAD - actionWidth
+
+        local catX = HEADER_PAD + 30 + 5
+        local sessionX = catX + 50 + 4
+        local sessionWidth = math.max(46, math.min(70, actionLeft - sessionX - 4))
+        sessionBtn:SetWidth(sessionWidth)
+
+        local rowLeft = catX
+        local rowRight = math.max(rowLeft + 78, actionLeft - 4)
+        local available = math.max(78, rowRight - rowLeft)
+        local timerWidth = 48
+        local gap = 4
+        local showTimer = timerBox:IsShown()
+        local timerPos = ns.db and ns.db.combatTimerPos or "RIGHT"
+
+        typeBtn:ClearAllPoints()
+        timerBox:ClearAllPoints()
+
+        if not showTimer then
+            typeBtn:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", rowLeft, 4)
+            typeBtn:SetWidth(math.min(160, available))
+            return
+        end
+
+        if timerPos == "LEFT" then
+            timerBox:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", rowLeft, 4)
+            typeBtn:SetPoint("BOTTOMLEFT", timerBox, "BOTTOMRIGHT", gap, 0)
+            typeBtn:SetWidth(math.max(26, math.min(160, available - timerWidth - gap)))
+        else
+            timerBox:SetPoint("BOTTOMRIGHT", header, "BOTTOMLEFT", rowRight, 4)
+            typeBtn:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", rowLeft, 4)
+            typeBtn:SetWidth(math.max(26, math.min(160, rowRight - timerWidth - gap - rowLeft)))
+        end
+    end
+
+    header:HookScript("OnSizeChanged", LayoutHeader)
+    LayoutHeader()
 
     local function UpdateLockIcon()
         if cfg.locked then
@@ -528,8 +585,8 @@ function ns.CreateMeterWindow(cfg)
         button.pctFS = MakeValueFS(bar)
 
         local selfTag = MakeFont(bar, 7, "muted", "CENTER")
-        selfTag:SetText("YOU")
-        selfTag:SetSize(22, 10)
+        selfTag:SetText(L["SELF_TAG"] or "YOU")
+        selfTag:SetSize(30, 10)
         selfTag:Hide()
         button.selfTag = selfTag
 
@@ -652,7 +709,7 @@ function ns.CreateMeterWindow(cfg)
         button.rankFS:Hide()
 
         local classFile = Safe(data.classFilename) and data.classFilename or nil
-        local r, g, b = ns.ClassColor(classFile)
+        local r, g, b = RowColor(classFile)
         button.bar:SetStatusBarTexture(ns.GetBarTexture())
         button.fill = button.bar:GetStatusBarTexture()
         button.bar:SetStatusBarColor(r, g, b, 1)
@@ -691,7 +748,7 @@ function ns.CreateMeterWindow(cfg)
         button.iconBG:Show()
 
         local classFile = Safe(ed.classFilename) and ed.classFilename or nil
-        local r, g, b = ns.ClassColor(classFile)
+        local r, g, b = RowColor(classFile)
         button.bar:SetStatusBarTexture(ns.GetBarTexture())
         button.fill = button.bar:GetStatusBarTexture()
         button.bar:SetStatusBarColor(r, g, b, 1)
@@ -734,8 +791,9 @@ function ns.CreateMeterWindow(cfg)
         button.groupAccent:SetVertexColor(ar, ag, ab, 0.95)
 
         local isSelf = Safe(ed.isLocalPlayer) and ed.isLocalPlayer or false
-        button.selfTag:SetShown(isSelf and true or false)
-        if isSelf then
+        local showYou = isSelf and ns.db and ns.db.showYouTag == true
+        button.selfTag:SetShown(showYou and true or false)
+        if showYou then
             button.selfTag:ClearAllPoints()
             button.selfTag:SetPoint("LEFT", button.nameFS, "RIGHT", 5, 0)
         end
@@ -1013,16 +1071,23 @@ function ns.CreateMeterWindow(cfg)
     end
 
     local function ApplyTimerPosition()
-        local pos = ns.db and ns.db.combatTimerPos or "RIGHT"
-        timerFS:SetJustifyH(pos == "LEFT" and "LEFT" or "RIGHT")
+        LayoutHeader()
     end
 
+    -- The combat timer is a session timer, not a DPS/HPS-only widget.  It is
+    -- therefore available on every meter type when enabled; Core/CombatTimerV3
+    -- supplies the one-second refresh for non-rate views.
     function state.UpdateTimer()
-        ApplyTimerPosition()
-        if not (ns.db and ns.db.showCombatTimer) or not ns.RATE_PRIMARY[state.meterType] then
+        if not (ns.db and ns.db.showCombatTimer) then
             timerFS:SetText("")
+            timerBox:Hide()
+            LayoutHeader()
             return
         end
+
+        timerBox:Show()
+        LayoutHeader()
+
         local seconds
         local session = C_DamageMeter.GetCombatSessionFromType(state.sessionType, state.meterType)
         if session and not issecretvalue(session) then
@@ -1033,16 +1098,25 @@ function ns.CreateMeterWindow(cfg)
             local ok, d = pcall(C_DamageMeter.GetSessionDurationSeconds, state.sessionType)
             if ok and Safe(d) then seconds = d end
         end
+
         if seconds == nil then
-            timerFS:SetText("")
+            timerFS:SetText("00:00")
+            SetFontRole(timerFS, "secondary")
+            timerBox:SetBackdropColor(0.025, 0.025, 0.032, 0.92)
+            timerBox:SetBackdropBorderColor(0.18, 0.18, 0.21, 0.84)
             return
         end
+
         timerFS:SetText(ns.FormatTimer(seconds))
         if ns.inCombat then
             local ar, ag, ab = AccentColor(1)
             timerFS:SetTextColor(ar, ag, ab)
+            timerBox:SetBackdropColor(ar * 0.10, ag * 0.10, ab * 0.10, 0.96)
+            timerBox:SetBackdropBorderColor(ar, ag, ab, 0.72)
         else
             SetFontRole(timerFS, "secondary")
+            timerBox:SetBackdropColor(0.025, 0.025, 0.032, 0.92)
+            timerBox:SetBackdropBorderColor(0.18, 0.18, 0.21, 0.84)
         end
     end
 
@@ -1158,6 +1232,12 @@ function ns.CreateMeterWindow(cfg)
         end,
         RefreshFonts = RefreshFonts,
         RefreshBarHeight = RefreshBarHeight,
+        RefreshYouTag = function()
+            for _, button in scrollBox:EnumerateFrames() do
+                if button._elementData then UpdateRow(button, button._elementData) end
+            end
+            if selfBar._elementData then UpdateRow(selfBar, selfBar._elementData) end
+        end,
         SetSelfBarEnabled = function(shown)
             if not shown then
                 selfBar._elementData = nil

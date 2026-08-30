@@ -1,5 +1,138 @@
 # Changelog
 
+# TomoDamageMeter 2.7.5 — Combat Timer Visibility Hotfix
+
+## Fixed
+
+- Fixed the combat timer remaining invisible on **Damage Done**, **Healing Done**,
+  Interrupts, Dispels, Deaths and the other non-DPS/HPS meter views.
+- The timer is now treated as a **session timer** rather than a rate-meter-only
+  widget.
+- The existing Left / Right timer position continues to work with all meter
+  types.
+- Updated the General setting label from “Combat Timer (DPS/HPS)” to the neutral
+  “Combat Timer” wording in every supported locale.
+
+## Performance
+
+- DPS/HPS continue to use the existing optimized core timer ticker.
+- A supplemental one-second ticker runs only while in combat and only when at
+  least one visible non-rate window needs a timer.
+- No permanent `OnUpdate`.
+- No CLEU / combat-log parsing.
+
+# TomoDamageMeter 2.7.4 — Navigation & Class Color Restore Hotfix
+
+## Fixed
+- Active settings navigation now uses a red label in addition to the active red frame/background, making the selected section immediately visible.
+- Fixed class-colour mode not returning meter rows to the native skin accent when disabled.
+- Added migration handling for SavedVariables already polluted by the pre-2.7.4 class-colour implementation.
+- Class-colour mode now keeps a dedicated pre-class-colour accent backup and restores it on disable.
+- When no trustworthy backup exists, TDM restores the currently selected skin's native accent (TDM Red restores red).
+- Meter windows are immediately repainted after the toggle changes; no reload is required.
+
+## Technical
+- No combat collection changes.
+- No CLEU.
+- No new ticker or OnUpdate.
+- No asset changes.
+
+# TomoDamageMeter 2.7.3 — UI Polish / Meter Fixes
+
+## UI polish
+- Replaced the stock-looking settings checkboxes with a compact TDM Red checkbox treatment.
+- Replaced the Blizzard-style settings sliders with a custom TDM Red track, fill, thumb and value capsule.
+- Kept the settings UI independent from meter skins.
+
+## Fixed — Class Color toggle
+- Fixed `Use Class Color` permanently overwriting the saved skin/manual accent color.
+- Enabling class colors now colors player and inline-spell rows by their class.
+- Disabling class colors immediately restores the active skin/accent without requiring `/reload`.
+
+## New — local-player tag option
+- Added **Show the YOU tag on my row** to General settings.
+- The tag is disabled by default for a cleaner row layout.
+- The tag is localized (`VOUS` in frFR and equivalents for the other supported locales).
+
+## Fixed — Combat Timer in Meter UI V3
+- Rebuilt the combat timer as a visible compact timer capsule in the lower header row.
+- `Left / Right` now changes the timer's real physical position instead of text justification only.
+- The header reserves timer space at the 300 px minimum meter width.
+- The session control dynamically shrinks when necessary so it cannot overlap the action-button cluster.
+- Shows `00:00` when the rate meter has no readable duration yet instead of silently disappearing.
+- Uses the active accent while in combat and the secondary text role outside combat.
+
+## Localization
+- Added the missing localized General-page description.
+- Added localized labels for the local-player tag option and tag text for all supported locales, including esMX fallback coverage.
+
+## Technical
+- No CLEU or Combat Log parsing.
+- No new combat events, tickers or permanent `OnUpdate` handlers.
+- No new textures/assets.
+
+# TomoDamageMeter 2.7.2 — Patch 12B Hotfix 1
+
+## Fixed
+- Fixed `CreateTexture(): Sublevel must be between -8 and 7` when Meter UI V3 creates a meter window.
+- Fixed the same invalid texture sublevel in Secondary UI V3 before it could affect analysis windows.
+- Preserved the intended top-edge layering by moving the red top accent to sublevel 6 and the white hot cap to sublevel 7.
+
+## Validation
+- Scanned every explicit numeric `CreateTexture` sublevel in `MeterUIV3.lua` and `SecondaryUIV3.lua`.
+- All texture sublevels are now within Blizzard's valid **-8 through 7** range.
+- Both V3 Lua files compile successfully with `loadfile()`.
+- No CLEU, combat collection, timer, `OnUpdate`, locale, SavedVariable or asset changes.
+
+# TomoDamageMeter 2.7.1 — Patch 12B: Secondary UI V3
+
+## New
+- Extended the Meter UI V3 design system to every major analysis window.
+- Added a shared V3 shell with premium frame glow, header sheen, accent cap, contextual function badge and subtle TDM watermark.
+- Added localized contextual badges for all supported languages, plus the existing esMX fallback.
+
+## Changed
+- Spell Breakdown now visually belongs to the same interface family as the redesigned main meter.
+- Target / Segment Breakdown now uses the V3 frame treatment while preserving the Pull Compare shortcut.
+- Death Recap now uses the same V3 chrome and row hierarchy.
+- Run Recap and the attached Performance panel now share the same visual language.
+- Run History and Pull Compare controls, row surfaces and selectors are harmonised with Meter UI V3.
+- Compact buttons receive a consistent dark control surface, accent underline and hover state.
+- Large interactive rows receive a restrained alternating card surface and static TDM sheen.
+- Compatible scrollbars receive the V3 accent treatment.
+
+## Architecture
+- Patch 12B is additive: existing analysis modules are not replaced or rewritten.
+- Styling is applied only after the original public Show/Open functions complete.
+- No `C_DamageMeter` read path is modified.
+- No CLEU / Combat Log parsing.
+- No `C_Timer.NewTicker()`.
+- No permanent `OnUpdate`.
+- No new textures; existing packaged TGA assets are reused.
+
+# TomoDamageMeter 2.7.0 — Patch 12A / True Meter Redesign
+
+## New
+- Rebuilt the live meter window as a new structural UI rather than another skin pass.
+- New 48px TDM product header with the official logo, category badge, prominent meter type, compact session selector and combat timer.
+- Header actions are now visible button cards for Settings, Target Breakdown, Spell Breakdown, Lock, Report and Reset.
+- Rebuilt player rows with dedicated rank blocks, spec-icon cards, cleaner class-coloured fills and clearer primary/secondary value hierarchy.
+- Added restrained podium styling for ranks 1–3 and a compact `YOU` marker for the local player.
+- Inline spell rows now visually nest beneath their player while keeping existing tooltips and advanced spell details.
+- Pinned self row uses the same redesigned row system.
+
+## Preserved
+- All 11 meter types and Current / Previous Fight / Overall sessions.
+- Spell Breakdown, Advanced Spell Details, Target Breakdown, Death Recap and reports.
+- Multi-window layout, snapping, dragging, resizing, lock state and saved positions.
+- The v2.0.10 valid-snapshot protection: a transient unreadable/secret session does not blank the last good meter frame.
+
+## Technical
+- Added `Modules/MeterUIV3.lua`; the validated `Modules/DamageMeter.lua` is left untouched.
+- `MeterUIV3.lua` replaces only `ns.CreateMeterWindow` before windows are instantiated.
+- Uses existing TDM TGA assets; no new files are added to `Assets/Textures`.
+- No CLEU, no combat-log parsing, no new permanent `OnUpdate` and no new polling ticker.
+
 ## v2.6.0
 
 Advanced Spell Details

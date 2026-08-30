@@ -15,7 +15,7 @@
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 2.7.1
+## Version: 2.7.5
 ## IconTexture: Interface\AddOns\TomoDamageMeter\Assets\Textures\TDM_Icon_64.tga
 ## AddonCompartmentFunc: TomoDamageMeter_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: TomoDamageMeter_OnAddonCompartmentEnter
@@ -39,14 +39,17 @@ Locales\zhTW.lua
 Locales\ruRU.lua
 Locales\MeterModes.lua
 Locales\SpellDetails.lua
+Locales\UIPolish.lua
 
 Modules\Style.lua
 Modules\Skins.lua
 
 Core\Init.lua
+Core\UIPolish.lua
 Core\MeterModes.lua
 Core\Utils.lua
 Core\Database.lua
+Core\CombatTimerV3.lua
 Modules\SpellBridge.lua
 Modules\SpellBreakdown.lua
 Modules\SpellDetails.lua
@@ -65,4 +68,5 @@ Modules\SecondaryUIV3.lua
 
 Config\Widgets.lua
 Config\ConfigUI.lua
+Config\WidgetsV3.lua
 Config\ConfigUIV2.lua

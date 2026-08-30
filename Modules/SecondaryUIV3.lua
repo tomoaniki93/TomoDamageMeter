@@ -136,14 +136,14 @@ local function EnsureShell(frame, spec)
     glow:SetAlpha(0.20)
     frame._tdmV3Glow = glow
 
-    local topAccent = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+    local topAccent = frame:CreateTexture(nil, "OVERLAY", nil, 6)
     topAccent:SetTexture(ns.FLAT or "Interface\\BUTTONS\\WHITE8X8")
     topAccent:SetHeight(2)
     topAccent:SetPoint("TOPLEFT", frame, "TOPLEFT")
     topAccent:SetPoint("TOPRIGHT", frame, "TOPRIGHT")
     frame._tdmV3TopAccent = topAccent
 
-    local hotCap = frame:CreateTexture(nil, "OVERLAY", nil, 8)
+    local hotCap = frame:CreateTexture(nil, "OVERLAY", nil, 7)
     hotCap:SetTexture(ns.FLAT or "Interface\\BUTTONS\\WHITE8X8")
     hotCap:SetSize(52, 1)
     hotCap:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -1)

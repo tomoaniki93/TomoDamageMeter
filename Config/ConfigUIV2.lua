@@ -387,7 +387,8 @@ local function CreateSettingsPanelV2()
             if pageKey == key then
                 btn:SetBackdropColor(0.23, 0.025, 0.045, 1)
                 btn:SetBackdropBorderColor(RED[1], RED[2], RED[3], 0.95)
-                btn.label:SetTextColor(1, 1, 1)
+                -- Active navigation is intentionally unmistakable: red label + red frame.
+                btn.label:SetTextColor(RED[1], RED[2], RED[3])
             else
                 btn:SetBackdropColor(0.035, 0.035, 0.042, 0.98)
                 btn:SetBackdropBorderColor(0.08, 0.08, 0.10, 0.8)
@@ -568,10 +569,15 @@ local function CreateSettingsPanelV2()
     Track(left:Widget(ns.Widgets.CreateCheckbox(leftCol, T("SETTINGS_USE_CLASS_COLOR", "Use Class Color"),
         function() return ns.db.accentUseClassColor end,
         function(val)
-            ns.db.accentUseClassColor = val and true or false
-            ns.ApplyAccentColor()
-            for _, win in ipairs(ns.windows) do
-                if win.RefreshAccentColor then win.RefreshAccentColor() end
+            if ns.SetClassColorMode then
+                ns.SetClassColorMode(val and true or false)
+            else
+                ns.db.accentUseClassColor = val and true or false
+                ns.ApplyAccentColor()
+                for _, win in ipairs(ns.windows) do
+                    if win.RefreshAccentColor then win.RefreshAccentColor() end
+                    if win.Refresh then win.Refresh() end
+                end
             end
         end), 24))
 
@@ -608,6 +614,19 @@ local function CreateSettingsPanelV2()
             for _, win in ipairs(ns.windows) do
                 if win.SetSelfBarEnabled then
                     win.SetSelfBarEnabled(ns.db.showSelfBar)
+                elseif win.Refresh then
+                    win.Refresh()
+                end
+            end
+        end), 24))
+
+    Track(left:Widget(ns.Widgets.CreateCheckbox(leftCol, T("SETTINGS_SHOW_YOU_TAG", "Show the YOU tag on my row"),
+        function() return ns.db.showYouTag == true end,
+        function(val)
+            ns.db.showYouTag = val and true or false
+            for _, win in ipairs(ns.windows) do
+                if win.RefreshYouTag then
+                    win.RefreshYouTag()
                 elseif win.Refresh then
                     win.Refresh()
                 end
