@@ -5,14 +5,17 @@ local L = ns.L
 -- Minimap Button + Addon Compartment
 --
 -- Native implementation: no LibDBIcon / Ace dependency and no permanent
--- OnUpdate.  OnUpdate exists only while the user is actively dragging.
+-- OnUpdate. OnUpdate exists only while the user is actively dragging.
+--
+-- 2.7.9: orbit geometry follows the same rule used by TomoSync / LibDBIcon-
+-- style buttons: the CENTER of the button sits on the minimap edge. No extra
+-- icon-half or arbitrary outer offset is added.
 ----------------------------------------------------------------------
 
 local ICON_TEXTURE = "Interface\\AddOns\\TomoDamageMeter\\Assets\\Textures\\TDM_Minimap_64"
 local DEFAULT_ANGLE = 225
 local DEFAULT_SCALE = 1
 local BUTTON_SIZE = 34
-local EDGE_OFFSET = 15
 
 local function Atan2(y, x)
     if math.atan2 then return math.atan2(y, x) end
@@ -77,29 +80,38 @@ local function SetAllLocked(locked)
     end
 end
 
+----------------------------------------------------------------------
+-- Orbit geometry
+----------------------------------------------------------------------
+
 local function ApplyPosition()
     if not button or not Minimap then return end
     local db = EnsureDB()
     if not db then return end
 
-    local angle = math.rad(db.angle or DEFAULT_ANGLE)
-    local width = Minimap:GetWidth() or 140
-    local height = Minimap:GetHeight() or width
-    local scale = tonumber(db.scale) or DEFAULT_SCALE
+    local angle = math.rad(tonumber(db.angle) or DEFAULT_ANGLE)
+    local x = math.cos(angle)
+    local y = math.sin(angle)
 
-    -- Follow the minimap's outer ellipse instead of using one radius based on
-    -- max(width,height). The extra gap also accounts for the visible HD icon
-    -- itself, keeping TDM aligned with normal minimap buttons instead of
-    -- sitting partly inside the map texture.
-    local iconHalf = BUTTON_SIZE * scale * 0.5
-    local edge = math.max(EDGE_OFFSET, iconHalf * 0.82)
-    local radiusX = width * 0.5 + edge
-    local radiusY = height * 0.5 + edge
+    -- Match normal minimap-button placement: the button CENTER rides directly
+    -- on the visible minimap edge. This is intentionally independent of the
+    -- button's own size/scale.
+    local radius = (Minimap:GetWidth() or 140) * 0.5
+
+    -- TomoSync-compatible square projection. Round minimaps use the normal
+    -- circular radius. A square minimap projects the direction vector onto the
+    -- nearest square edge so the icon still sits on the border.
+    local shape = (GetMinimapShape and GetMinimapShape()) or "ROUND"
+    if shape == "SQUARE" then
+        local m = math.max(math.abs(x), math.abs(y))
+        if m > 0 then
+            x = x / m
+            y = y / m
+        end
+    end
 
     button:ClearAllPoints()
-    button:SetPoint("CENTER", Minimap, "CENTER",
-        math.cos(angle) * radiusX,
-        math.sin(angle) * radiusY)
+    button:SetPoint("CENTER", Minimap, "CENTER", x * radius, y * radius)
 end
 
 local function ApplyScale()
@@ -123,18 +135,26 @@ local function UpdateAngleFromCursor()
     local db = EnsureDB()
     if not db or not button or not Minimap then return end
 
-    local scale = UIParent:GetEffectiveScale()
-    local cursorX, cursorY = GetCursorPosition()
-    cursorX, cursorY = cursorX / scale, cursorY / scale
-
     local centerX, centerY = Minimap:GetCenter()
     if not centerX or not centerY then return end
+
+    -- Use the minimap's effective scale, not UIParent's. This keeps cursor
+    -- tracking correct when the minimap itself is scaled by another addon.
+    local scale = Minimap:GetEffectiveScale()
+    if not scale or scale <= 0 then return end
+
+    local cursorX, cursorY = GetCursorPosition()
+    cursorX, cursorY = cursorX / scale, cursorY / scale
 
     local angle = math.deg(Atan2(cursorY - centerY, cursorX - centerX))
     if angle < 0 then angle = angle + 360 end
     db.angle = angle
     ApplyPosition()
 end
+
+----------------------------------------------------------------------
+-- Quick menu / tooltip
+----------------------------------------------------------------------
 
 local function OpenQuickMenu(owner)
     if not MenuUtil or not MenuUtil.CreateContextMenu then
@@ -193,6 +213,10 @@ local function ShowTooltip(owner)
     GameTooltip:Show()
 end
 
+----------------------------------------------------------------------
+-- Button creation
+----------------------------------------------------------------------
+
 local function CreateButton()
     if button or not Minimap then return button end
 
@@ -202,16 +226,12 @@ local function CreateButton()
     button:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 8)
     button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     button:RegisterForDrag("LeftButton")
-    button:SetClampedToScreen(true)
 
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetTexture(ICON_TEXTURE)
     icon:SetAllPoints()
     icon:SetTexCoord(0, 1, 0, 1)
     button._icon = icon
-
-    -- The HD TDM texture already contains its circular chrome/red border, so
-    -- no Blizzard tracking border or text overlay is needed.
 
     local highlight = button:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
@@ -248,9 +268,7 @@ local function CreateButton()
     end)
 
     if Minimap.HookScript then
-        Minimap:HookScript("OnSizeChanged", function()
-            ApplyPosition()
-        end)
+        Minimap:HookScript("OnSizeChanged", ApplyPosition)
     end
 
     ApplyScale()
@@ -276,6 +294,7 @@ function ns.SetMinimapButtonScale(scale)
     if not db then return end
     db.scale = tonumber(scale) or DEFAULT_SCALE
     ApplyScale()
+    -- The center remains on the same minimap edge regardless of button scale.
     ApplyPosition()
 end
 

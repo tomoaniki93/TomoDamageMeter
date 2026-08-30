@@ -1,5 +1,74 @@
 # Changelog
 
+# 2.7.9 — Minimap Border Placement
+
+## Fixed
+- Replaced the previous offset-based minimap orbit with the same geometry used
+  by TomoSync / standard LibDBIcon-style placement.
+- The TDM button center now sits directly on `Minimap:GetWidth() / 2`.
+- Removed button-size and extra-edge compensation that caused TDM to orbit on a
+  different ring from other minimap icons.
+- Added SQUARE minimap edge projection.
+- Drag calculations now use `Minimap:GetEffectiveScale()`.
+
+## Cleanup
+- `Modules/MinimapPositionV2.lua` is removed from the TOC and is no longer used.
+
+## Technical
+- Full replacement of `Modules/Minimap.lua`.
+- No CLEU.
+- No ticker.
+- No permanent `OnUpdate`.
+- No new texture assets.
+
+# 2.7.8 — Minimap Ring Alignment
+
+## Fixed
+- Corrected the TDM minimap button orbit being too far outside the visible minimap edge.
+- The new geometry compensates for the Retail minimap frame being larger than its visible circular texture.
+- Default orbit is moved inward by roughly 11 px at scale 1.0 compared with the previous implementation.
+- Preserves saved angle and scale.
+- Preserves full 360-degree drag behavior.
+
+## Technical
+- Additive position layer; `Modules/Minimap.lua` remains untouched.
+- No permanent `OnUpdate`.
+- No new ticker.
+- No CLEU.
+- No new assets.
+
+# 2.7.7 — DPS/HPS Timer Scope Hotfix
+
+## Fixed
+- Fixed the combat timer remaining visible on Actions / Interruptions after `/reload`.
+- The Meter UI V3 timer no longer relies on shared `RATE_PRIMARY` metadata for UI visibility.
+- Timer visibility now uses an explicit whitelist:
+  - `Enum.DamageMeterType.Dps`
+  - `Enum.DamageMeterType.Hps`
+- All other meter types forcibly hide and clear the timer block.
+- Keeps the existing optimized core one-second timer refresh for DPS/HPS only.
+
+## Technical
+- No CLEU.
+- No new ticker.
+- No permanent `OnUpdate`.
+- No asset changes.
+
+# TomoDamageMeter 2.7.6 — DPS/HPS Combat Timer Scope Hotfix
+
+## Fixed
+- Restored the intended combat-timer scope: the timer is shown only on DPS and HPS meter windows.
+- Removed the 2.7.5 supplemental non-rate timer path.
+- DPS/HPS continue to use the existing optimized combat timer ticker owned by `Core/Database.lua`.
+- Retained the Meter UI V3 timer pill and real Left / Right positioning.
+- Updated the settings label to explicitly state `(DPS/HPS)`.
+
+## Technical
+- No CLEU.
+- No additional ticker.
+- No permanent `OnUpdate`.
+- `Core/CombatTimerV3.lua` is no longer loaded and can be removed from disk.
+
 # TomoDamageMeter 2.7.5 — Combat Timer Visibility Hotfix
 
 ## Fixed
