@@ -207,11 +207,16 @@ end
 ----------------------------------------------------------------------
 
 -- Actions category types: display as simple integer count
-ns.ACTIONS_TYPES = {
-    [Enum.DamageMeterType.Interrupts] = true,
-    [Enum.DamageMeterType.Dispels] = true,
-    [Enum.DamageMeterType.Deaths] = true,
-}
+-- Built by loop: a type missing from the client's Enum is skipped instead of
+-- becoming a nil table index that aborts the file.
+ns.ACTIONS_TYPES = {}
+for _, t in pairs({
+    Enum.DamageMeterType.Interrupts,
+    Enum.DamageMeterType.Dispels,
+    Enum.DamageMeterType.Deaths,
+}) do
+    ns.ACTIONS_TYPES[t] = true
+end
 
 function ns.PopulateColumnValues(button, elementData)
     local total = elementData.totalAmount or 0

@@ -12,7 +12,7 @@ eventFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
         -- Hide Blizzard's built-in damage meter UI (data collection stays active)
-        C_CVar.SetCVar("damageMeterEnabled", "0")
+        pcall(C_CVar.SetCVar, "damageMeterEnabled", "0")
 
         TomoDamageMeterDB = TomoDamageMeterDB or {}
         ns.db = TomoDamageMeterDB

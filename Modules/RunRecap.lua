@@ -609,9 +609,9 @@ end
 
 local runFrame = CreateFrame("Frame")
 runFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-runFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
-runFrame:RegisterEvent("CHALLENGE_MODE_START")
-runFrame:RegisterEvent("LFG_COMPLETION_REWARD")
+ns.SafeRegisterEvent(runFrame, "CHALLENGE_MODE_COMPLETED")
+ns.SafeRegisterEvent(runFrame, "CHALLENGE_MODE_START")
+ns.SafeRegisterEvent(runFrame, "LFG_COMPLETION_REWARD")
 
 runFrame:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_ENTERING_WORLD" then

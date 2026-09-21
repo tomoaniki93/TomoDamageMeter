@@ -8,6 +8,14 @@ ns.addonName = ADDON_NAME
 ns.windows = {}
 ns.inCombat = false
 
+-- WoW: Forever (interface 16001) runs the Mainline client, but registering an
+-- event the client does not know throws and aborts the calling file. Every
+-- non-core event goes through this so a missing one only disables its feature.
+function ns.SafeRegisterEvent(frame, event)
+    local ok = pcall(frame.RegisterEvent, frame, event)
+    return ok
+end
+
 ----------------------------------------------------------------------
 -- Meter Type Metadata
 ----------------------------------------------------------------------
@@ -29,6 +37,20 @@ ns.METER_CATEGORIES = {
         { type = Enum.DamageMeterType.Deaths,     key = "DEATHS" },
     }},
 }
+
+-- Drop any meter type the client's Enum does not define (a nil type would be
+-- a nil table index below and abort the file), then any category left empty.
+for catIdx = #ns.METER_CATEGORIES, 1, -1 do
+    local cat = ns.METER_CATEGORIES[catIdx]
+    for i = #cat.types, 1, -1 do
+        if cat.types[i].type == nil then
+            table.remove(cat.types, i)
+        end
+    end
+    if #cat.types == 0 then
+        table.remove(ns.METER_CATEGORIES, catIdx)
+    end
+end
 
 -- Reverse lookup: type -> category info
 ns.TYPE_INFO = {}
@@ -90,10 +112,10 @@ function ns.EnforceEnabledTypes()
 end
 
 -- Types where amountPerSecond is the primary display value
-ns.RATE_PRIMARY = {
-    [Enum.DamageMeterType.Dps] = true,
-    [Enum.DamageMeterType.Hps] = true,
-}
+ns.RATE_PRIMARY = {}
+for _, t in ipairs({ Enum.DamageMeterType.Dps, Enum.DamageMeterType.Hps }) do
+    ns.RATE_PRIMARY[t] = true
+end
 
 -- Session options
 ns.SESSION_OPTIONS = {

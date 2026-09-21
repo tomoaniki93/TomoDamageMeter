@@ -1,4 +1,4 @@
-## Interface: 120100, 120007
+## Interface: 16001, 120100
 ##
 ## Title: |cffCC44FFTomo|r|cffFFFFFFDamageMeter|r
 ## Notes: Standalone Damage Meter addon.
@@ -15,7 +15,7 @@
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 2.7.9
+## Version: 2.8.0
 ## IconTexture: Interface\AddOns\TomoDamageMeter\Assets\Textures\TDM_Icon_64.tga
 ## AddonCompartmentFunc: TomoDamageMeter_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: TomoDamageMeter_OnAddonCompartmentEnter

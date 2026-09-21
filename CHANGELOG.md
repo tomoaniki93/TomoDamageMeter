@@ -1,5 +1,39 @@
 # Changelog
 
+# 2.8.0 — WoW: Forever Compatibility
+
+## Added
+- WoW: Forever support. Forever runs the Mainline client (interface `16001`,
+  `WOW_PROJECT_MAINLINE`, same Midnight restrictions, built-in `C_DamageMeter`
+  and `C_DeathRecap`), so the Retail code path is used as-is.
+
+### TomoDamageMeter.toc
+- `## Interface: 16001, 120100, 120007`. Without `16001` the Forever client
+  flags the addon as out of date.
+- Version bumped to 2.8.0.
+
+### Core/Init.lua
+- New `ns.SafeRegisterEvent(frame, event)`. Root cause: on the Forever client,
+  `RegisterEvent` on an unknown event throws and aborts the whole file. The
+  helper wraps it in `pcall` so a missing event only disables its feature.
+- `METER_CATEGORIES` is pruned of any type absent from the client's
+  `Enum.DamageMeterType`, then of empty categories. Root cause: a nil `type`
+  became a nil table index in the `TYPE_INFO` loop and aborted `Init.lua`.
+- `RATE_PRIMARY` is built by loop for the same reason.
+
+### Core/Utils.lua
+- `ACTIONS_TYPES` is built by loop. Root cause: `[Enum.DamageMeterType.X] = true`
+  throws "table index is nil" at load if the client lacks the member.
+
+### Modules/RunRecap.lua
+- `CHALLENGE_MODE_COMPLETED`, `CHALLENGE_MODE_START` and `LFG_COMPLETION_REWARD`
+  go through `ns.SafeRegisterEvent`. Forever has no Mythic+; manual runs
+  (instance enter/exit) keep working.
+
+### Core/Database.lua
+- `C_CVar.SetCVar("damageMeterEnabled", "0")` is wrapped in `pcall` so a
+  renamed or absent CVar cannot abort `ADDON_LOADED` initialisation.
+
 # 2.7.9 — Minimap Border Placement
 
 ## Fixed
