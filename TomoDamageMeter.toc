@@ -41,6 +41,7 @@ Locales\ruRU.lua
 Locales\MeterModes.lua
 Locales\SpellDetails.lua
 Locales\UIPolish.lua
+Locales\Benchmark.lua
 
 Modules\Style.lua
 Modules\Skins.lua
@@ -64,6 +65,7 @@ Modules\Minimap.lua
 Modules\VisualV2.lua
 Modules\MeterUIV3.lua
 Modules\SecondaryUIV3.lua
+Modules\Benchmark.lua
 
 Config\Widgets.lua
 Config\WidgetsV3.lua

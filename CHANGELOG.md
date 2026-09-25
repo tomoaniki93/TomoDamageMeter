@@ -1,8 +1,21 @@
 # Changelog
 
-# 2.8.2 - Shared Mythic+ Keystone Synchronization
+# 2.8.2 - Damage Benchmark and Shared Mythic+ Keystone Synchronization
 
-## Added
+## Damage Benchmark
+- Added a dedicated Damage Benchmark window for repeatable personal DPS tests.
+- Added selectable 30, 60 and 120-second test durations with live elapsed time,
+  damage and average DPS updates. Tests can be armed before combat and begin
+  automatically when combat starts.
+- Added a persistent local result history capped at 50 tests and a ranked Top 5
+  view. Results include character, specialization, equipped item level, damage,
+  DPS, duration and date, with an option to clear the history.
+- Added a stopwatch launcher to every meter window and the
+  `/tdm benchmark [30|60|120]` and `/tdm bench [30|60|120]` commands.
+- Added a read-only `TomoDamageMeter.GetBenchmarkHistory()` API for future
+  TomoSuite integrations.
+
+## Keystone Synchronization
 - Added the bundled `LibTomoKeystoneSync-1.0` library and loaded it before the
   addon locale and feature modules.
 - Added automatic exchange of Mythic+ keystone map and level, player class and
@@ -12,6 +25,11 @@
   keystone data and react to updates without implementing their own transport.
 
 ## Compatibility and Reliability
+- Reads benchmark totals from Blizzard's `C_DamageMeter` sessions and guards
+  secret or temporarily unavailable values without relying on combat-log event
+  parsing.
+- Preserves test state across damage-meter session resets and safely cancels
+  the benchmark ticker at logout.
 - Uses the existing `TOMOKEYS` protocol for interoperability with other Tomo
   addons and delegates transport to TomoMod when its native key sync is
   available, preventing duplicate addon messages.
@@ -22,7 +40,9 @@
 
 ## Localization
 - Synchronized all nine locale catalogs and the three shared locale extensions
-  to revision 2.8.2. This release adds no new player-facing translatable text.
+  to revision 2.8.2.
+- Added localized Damage Benchmark labels, status messages, history columns and
+  command help for all nine supported locales.
 
 # 2.8.1 - Reliability, Audit and Release Tooling
 
