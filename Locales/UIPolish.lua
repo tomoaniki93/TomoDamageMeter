@@ -2,6 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- UI Polish locale extension / 2.7.5
+-- Catalog revision: 2.8.1 (layout-only update; no new translatable strings)
 ----------------------------------------------------------------------
 
 local locale = GetLocale()

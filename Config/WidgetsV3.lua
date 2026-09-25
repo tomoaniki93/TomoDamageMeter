@@ -3,9 +3,9 @@ local ADDON_NAME, ns = ...
 ----------------------------------------------------------------------
 -- Settings Widgets V3 / 2.7.3
 --
--- Visual replacement for the stock-looking checkbox and slider factories.
--- ConfigUIV2 is loaded after this file, so every checkbox/slider it creates
--- automatically receives the TDM Red treatment without touching page logic.
+-- The checkbox and slider factories. Config/Widgets.lua keeps ns.Widgets and
+-- the dropdown; its original checkbox/slider, which these used to overwrite at
+-- load time, have been removed. ConfigUIV2 loads after this file.
 ----------------------------------------------------------------------
 
 if not ns.Widgets then return end

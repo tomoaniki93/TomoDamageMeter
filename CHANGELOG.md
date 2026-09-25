@@ -1,5 +1,39 @@
 # Changelog
 
+# 2.8.1 - Reliability, Audit and Release Tooling
+
+## Fixed
+- Fixed overlapping controls in the compact meter header. The category and
+  session controls now share a dedicated first row, while the meter type and
+  combat timer align on a separate second row.
+- Re-anchored the header grid from its top edge so labels and timer placement
+  remain stable whether the timer is hidden, left-aligned or right-aligned.
+- Fixed `/tdm diag` never running after it was armed. Its state and probe are
+  now declared before the combat-event handler, so the handler resolves the
+  intended local bindings instead of missing globals.
+- Hardened reads from Blizzard's damage-meter sessions against secret and
+  unavailable values before they reach comparisons, arithmetic, table access
+  or UI formatting.
+- Removed stale legacy implementations that were no longer loaded or were
+  overwritten by the active V2/V3 modules.
+
+## Changed
+- Consolidated the settings widget factories so each active control has a
+  single implementation.
+- Cleaned the TOC and active module set around the current V2/V3 interface.
+- Synchronized the revision marker across all nine supported locale catalogs
+  and the three shared locale extensions; existing translations and fallback
+  behavior are unchanged.
+- Added a complete third-party license inventory for bundled libraries.
+
+## Added
+- Added CI gates for Lua 5.1 syntax, TOC consistency, secret-value safety,
+  file-scope forward references and critical `luacheck` diagnostics.
+- Added a tested release builder driven by `.pkgmeta`. It rejects incomplete,
+  miscased or development-file-contaminated packages before a release is
+  produced.
+- Added automated tests for the secret-value auditor and release builder.
+
 # 2.8.0 — WoW: Forever Compatibility
 
 ## Added
@@ -8,7 +42,7 @@
   and `C_DeathRecap`), so the Retail code path is used as-is.
 
 ### TomoDamageMeter.toc
-- `## Interface: 16001, 120100, 120007`. Without `16001` the Forever client
+- `## Interface: 16001, 120100`. Without `16001` the Forever client
   flags the addon as out of date.
 - Version bumped to 2.8.0.
 

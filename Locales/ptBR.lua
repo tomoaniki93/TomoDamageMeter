@@ -2,6 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: Portuguese (Brazil)
+-- Catalog revision: 2.8.1 (layout-only update; no new translatable strings)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "ptBR" then return end
@@ -214,6 +215,7 @@ L["FONT_ARIAL"] = "Arial Narrow"
 L["FONT_2002"] = "2002"
 L["FONT_MORPHEUS"] = "Morpheus"
 L["FONT_SKURRI"] = "Skurri"
+L["FONT_GAME_DEFAULT"] = "Padrão do jogo"
 
 L["FILTER_PLAYERS"] = "Filtrar..."
 

@@ -195,9 +195,22 @@ ns.STRIP_WIDTH      = 18
 ns.FONT_SIZE        = 12
 ns.BAR_FONT_SIZE    = 10
 
--- Default font (uses game built-in; can be overridden in DB)
-ns.FONT = "Fonts\\FRIZQT__.TTF"
+-- Default font: the client's own STANDARD_TEXT_FONT, which Blizzard sets per
+-- locale (FRIZQT__ on Latin clients, FRIZQT___CYR on ruRU, ARKai_T on zhCN,
+-- and so on). This used to be a hard-coded FRIZQT__.TTF, which has Latin
+-- glyphs only (see the coverage table in Libs/LibSharedMedia-3.0): the ruRU,
+-- zhCN and zhTW translations shipped with this addon could not render.
+-- The old value is kept for the one-time migration in Core/Database.lua.
+ns.LEGACY_DEFAULT_FONT = "Fonts\\FRIZQT__.TTF"
+ns.FONT = STANDARD_TEXT_FONT or ns.LEGACY_DEFAULT_FONT
 ns.HEADER_FONT = ns.FONT
+
+-- Font paths are compared case- and separator-insensitively: the client
+-- accepts both spellings, and STANDARD_TEXT_FONT's exact casing is not ours.
+function ns.SameFontPath(a, b)
+    if type(a) ~= "string" or type(b) ~= "string" then return false end
+    return a:gsub("/", "\\"):lower() == b:gsub("/", "\\"):lower()
+end
 
 ----------------------------------------------------------------------
 -- Font Registry (built-in game fonts)
@@ -210,6 +223,12 @@ ns.FONT_LIST = {
     { path = "Fonts\\MORPHEUS.TTF",     key = "FONT_MORPHEUS" },
     { path = "Fonts\\SKURRI.TTF",       key = "FONT_SKURRI" },
 }
+
+-- On clients whose game font is not FRIZQT__ (ruRU, zhCN, zhTW, koKR), offer
+-- it first: it is the new default, and the only entry that covers zhCN/zhTW.
+if not ns.SameFontPath(ns.FONT, ns.LEGACY_DEFAULT_FONT) then
+    table.insert(ns.FONT_LIST, 1, { path = ns.FONT, key = "FONT_GAME_DEFAULT" })
+end
 
 ----------------------------------------------------------------------
 -- Font accessor (DB override)

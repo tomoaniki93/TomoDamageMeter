@@ -4,10 +4,10 @@ local L = ns.L
 ----------------------------------------------------------------------
 -- Settings V2
 --
--- The original ConfigUI.lua stays loaded as a fallback/reference.  This file
--- is loaded afterwards and intentionally replaces only the public settings
--- entry points.  The V2 panel is persistent: pages and widgets are allocated
--- once, then refreshed in place.
+-- Owns the public settings entry points (ns.OpenSettings, ns.ToggleSettings).
+-- The original Config/ConfigUI.lua it used to override at load time has been
+-- removed (git history keeps it). The V2 panel is persistent: pages and
+-- widgets are allocated once, then refreshed in place.
 ----------------------------------------------------------------------
 
 local settingsFrame

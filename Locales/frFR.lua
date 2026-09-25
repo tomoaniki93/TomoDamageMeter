@@ -2,6 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: French
+-- Catalog revision: 2.8.1 (layout-only update; no new translatable strings)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "frFR" then return end
@@ -226,6 +227,7 @@ L["FONT_ARIAL"] = "Arial Narrow"
 L["FONT_2002"] = "2002"
 L["FONT_MORPHEUS"] = "Morpheus"
 L["FONT_SKURRI"] = "Skurri"
+L["FONT_GAME_DEFAULT"] = "Police du jeu"
 L["FILTER_PLAYERS"] = "Filtrer..."
 
 L["ADDON_PREFIX"] = "|cffe0115fTomo DM :|r "

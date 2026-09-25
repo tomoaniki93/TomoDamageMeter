@@ -187,37 +187,10 @@ function ns.RefreshTDMVisuals()
 end
 
 ----------------------------------------------------------------------
--- Main meter windows
+-- Main meter windows draw their own chrome in Modules/MeterUIV3.lua. The
+-- ns.CreateMeterWindow wrapper that stood here only ever wrapped the legacy
+-- constructor, which MeterUIV3 replaced right after: it never ran.
 ----------------------------------------------------------------------
-
-if ns.CreateMeterWindow and not ns._tdmVisualWrappedCreateMeter then
-    ns._tdmVisualWrappedCreateMeter = true
-    local CreateMeterWindow = ns.CreateMeterWindow
-    ns.CreateMeterWindow = function(cfg)
-        local win = CreateMeterWindow(cfg)
-        if win and win.frame then
-            ns.DecorateTDMFrame(win.frame, "meter")
-
-            if win.RefreshSkin then
-                local RefreshSkin = win.RefreshSkin
-                win.RefreshSkin = function(...)
-                    local out = { RefreshSkin(...) }
-                    ns.DecorateTDMFrame(win.frame, "meter")
-                    return unpack(out)
-                end
-            end
-            if win.RefreshAccentColor then
-                local RefreshAccentColor = win.RefreshAccentColor
-                win.RefreshAccentColor = function(...)
-                    local out = { RefreshAccentColor(...) }
-                    ns.DecorateTDMFrame(win.frame, "meter")
-                    return unpack(out)
-                end
-            end
-        end
-        return win
-    end
-end
 
 ----------------------------------------------------------------------
 -- Singleton detail windows. Their internal constructors are local, so the

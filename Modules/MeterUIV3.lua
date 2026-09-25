@@ -4,9 +4,9 @@ local L = ns.L
 ----------------------------------------------------------------------
 -- Meter UI V3 / Patch 12A
 --
--- Structural replacement for the main meter window. The validated legacy
--- DamageMeter.lua stays untouched and loaded; this module is loaded afterwards
--- and replaces ns.CreateMeterWindow before ADDON_LOADED creates any windows.
+-- Structural replacement for the main meter window. It is the only definition
+-- of ns.CreateMeterWindow: the legacy Modules/DamageMeter.lua, which this file
+-- used to override at load time, has been removed (git history keeps it).
 --
 -- Data remains C_DamageMeter-only. No CLEU, no permanent OnUpdate, no polling
 -- ticker is introduced here. Core/Database.lua remains the owner of refresh
@@ -23,6 +23,17 @@ local MIN_WIDTH = 300
 local MIN_HEIGHT = 150
 local HEADER_H = 48
 local HEADER_PAD = 7
+
+-- Vertical grid of the header, as offsets from its top edge. Two text rows,
+-- centred as one block on the header like the logo and the action buttons:
+-- row 1 holds the category pill (the session pill, 16 px, centres on it),
+-- row 2 the meter type and the combat timer, which share its height so their
+-- text lines up. Row 2 used to hang from the header's BOTTOM edge in a 21 px
+-- button while row 1 hung from the logo's top: the rows overlapped by 6 px,
+-- putting the type label over the category pill and the timer box over its
+-- border. The block now ends 5 px above the header's bottom edge.
+local ROW1_Y, ROW1_H = 6, 14
+local ROW2_Y, ROW2_H = 23, 18
 local BUTTON_SIZE = 20
 local BUTTON_GAP = 1
 local RANK_W = 27
@@ -285,8 +296,8 @@ function ns.CreateMeterWindow(cfg)
     logo:SetPoint("LEFT", header, "LEFT", HEADER_PAD, 0)
 
     local catBtn = CreateFrame("Button", nil, header, "BackdropTemplate")
-    catBtn:SetSize(50, 14)
-    catBtn:SetPoint("TOPLEFT", logo, "TOPRIGHT", 5, -5)
+    catBtn:SetSize(50, ROW1_H)
+    catBtn:SetPoint("TOPLEFT", header, "TOPLEFT", HEADER_PAD + 30 + 5, -ROW1_Y)
     catBtn:RegisterForClicks("LeftButtonUp")
     SetBackdrop(catBtn, 0.10, 0.015, 0.025, 0.88, 0.35, 0.04, 0.07, 0.65)
 
@@ -294,8 +305,8 @@ function ns.CreateMeterWindow(cfg)
     catText:SetPoint("CENTER", 0, 0)
 
     local typeBtn = CreateFrame("Button", nil, header)
-    typeBtn:SetPoint("TOPLEFT", catBtn, "BOTTOMLEFT", 0, -1)
-    typeBtn:SetHeight(21)
+    typeBtn:SetPoint("TOPLEFT", header, "TOPLEFT", HEADER_PAD + 30 + 5, -ROW2_Y)
+    typeBtn:SetHeight(ROW2_H)
     typeBtn:SetWidth(105)
     typeBtn:RegisterForClicks("LeftButtonUp")
 
@@ -313,7 +324,7 @@ function ns.CreateMeterWindow(cfg)
     sessionText:SetPoint("CENTER", 0, 0)
 
     local timerBox = CreateFrame("Frame", nil, header, "BackdropTemplate")
-    timerBox:SetSize(48, 18)
+    timerBox:SetSize(48, ROW2_H)
     SetBackdrop(timerBox, 0.025, 0.025, 0.032, 0.92, 0.18, 0.18, 0.21, 0.84)
     timerBox:Hide()
 
@@ -393,19 +404,20 @@ function ns.CreateMeterWindow(cfg)
         typeBtn:ClearAllPoints()
         timerBox:ClearAllPoints()
 
+        -- Everything on row 2 is TOP-anchored at ROW2_Y (see the grid above).
         if not showTimer then
-            typeBtn:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", rowLeft, 4)
+            typeBtn:SetPoint("TOPLEFT", header, "TOPLEFT", rowLeft, -ROW2_Y)
             typeBtn:SetWidth(math.min(160, available))
             return
         end
 
         if timerPos == "LEFT" then
-            timerBox:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", rowLeft, 4)
-            typeBtn:SetPoint("BOTTOMLEFT", timerBox, "BOTTOMRIGHT", gap, 0)
+            timerBox:SetPoint("TOPLEFT", header, "TOPLEFT", rowLeft, -ROW2_Y)
+            typeBtn:SetPoint("TOPLEFT", timerBox, "TOPRIGHT", gap, 0)
             typeBtn:SetWidth(math.max(26, math.min(160, available - timerWidth - gap)))
         else
-            timerBox:SetPoint("BOTTOMRIGHT", header, "BOTTOMLEFT", rowRight, 4)
-            typeBtn:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", rowLeft, 4)
+            timerBox:SetPoint("TOPRIGHT", header, "TOPLEFT", rowRight, -ROW2_Y)
+            typeBtn:SetPoint("TOPLEFT", header, "TOPLEFT", rowLeft, -ROW2_Y)
             typeBtn:SetWidth(math.max(26, math.min(160, rowRight - timerWidth - gap - rowLeft)))
         end
     end
@@ -1074,11 +1086,15 @@ function ns.CreateMeterWindow(cfg)
         LayoutHeader()
     end
 
-    -- The combat timer is a session timer, not a DPS/HPS-only widget.  It is
-    -- therefore available on every meter type when enabled; Core/CombatTimerV3
-    -- supplies the one-second refresh for non-rate views.
+    -- The combat timer is shown on DPS / HPS windows only (RATE_PRIMARY), as
+    -- the settings label says. Those are the only views Core/Database.lua
+    -- refreshes every second. This function used to show the pill on every
+    -- meter type, relying on Core/CombatTimerV3.lua for the non-rate views;
+    -- once that companion ticker was retired the pill still appeared there,
+    -- frozen for the whole fight.
     function state.UpdateTimer()
-        if not (ns.db and ns.db.showCombatTimer) then
+        if not (ns.db and ns.db.showCombatTimer)
+            or not (ns.RATE_PRIMARY and ns.RATE_PRIMARY[state.meterType]) then
             timerFS:SetText("")
             timerBox:Hide()
             LayoutHeader()

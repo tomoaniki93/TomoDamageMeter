@@ -1,4 +1,4 @@
-## Interface: 16001, 120100
+## Interface: 120105, 120100, 16001
 ##
 ## Title: |cffCC44FFTomo|r|cffFFFFFFDamageMeter|r
 ## Notes: Standalone Damage Meter addon.
@@ -15,7 +15,7 @@
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 2.8.0
+## Version: 2.8.1
 ## IconTexture: Interface\AddOns\TomoDamageMeter\Assets\Textures\TDM_Icon_64.tga
 ## AddonCompartmentFunc: TomoDamageMeter_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: TomoDamageMeter_OnAddonCompartmentEnter
@@ -54,7 +54,6 @@ Modules\SpellBreakdown.lua
 Modules\SpellDetails.lua
 Modules\TargetBreakdown.lua
 Modules\DeathRecap.lua
-Modules\DamageMeter.lua
 Modules\RunRecap.lua
 Modules\RunHistory.lua
 Modules\PullCompare.lua
@@ -66,6 +65,5 @@ Modules\MeterUIV3.lua
 Modules\SecondaryUIV3.lua
 
 Config\Widgets.lua
-Config\ConfigUI.lua
 Config\WidgetsV3.lua
 Config\ConfigUIV2.lua
