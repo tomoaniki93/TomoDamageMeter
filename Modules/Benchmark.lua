@@ -2,7 +2,6 @@ local ADDON_NAME, ns = ...
 local L = ns.L
 
 ----------------------------------------------------------------------
--- Damage Benchmark - 2.8.2
 --
 -- A timed, local damage test built on Blizzard's C_DamageMeter data.
 -- Important: C_DamageMeter values are read only from damage-meter/combat event
@@ -14,6 +13,36 @@ local HISTORY_LIMIT = 50
 local DURATIONS = { 30, 60, 120 }
 local TICK_INTERVAL = 0.10
 local LAUNCHER_ICON = "Interface\\Icons\\INV_Misc_PocketWatch_01"
+
+-- NPC IDs are used instead of localized names so dummy detection works on all
+-- supported clients.  The list covers legacy capitals through Dragonflight /
+-- The War Within plus Midnight Silvermoon damage / tanking dummies.
+local TRAINING_DUMMY_IDS = {}
+for _, id in ipairs({
+    4952, 5652, 25225, 25297, 31144, 31146, 32541, 32542, 32543, 32545, 32546,
+    32666, 32667, 44171, 44389, 44548, 44614, 44703, 44794, 44820, 44848, 44937,
+    46647, 48304, 60197, 64446, 67127, 70245, 79414, 87317, 87318, 87320, 87322,
+    87329, 87760, 87761, 87762, 88288, 88314, 88836, 88837, 88906, 89078, 92164,
+    92165, 92166, 92168, 92169, 93828, 97668, 98581, 107104, 108420, 109066,
+    109096, 111824, 113858, 113859, 113860, 113862, 113863, 113864, 113871,
+    114832, 114840,
+    126712, 126781, 127019, 131983, 131989, 131990, 131992, 132976, 134324,
+    138048, 143119, 143509, 144073, 144077, 144081, 144085, 144086, 153285,
+    153292, 172452, 173942, 174565, 174566, 174567, 174568, 175449, 175450,
+    175451, 189082, 193394, 193563, 194643, 194644, 194648, 194649, 197833, 198594, 199057,
+    216458, 219250, 222275, 225976, 225977, 225982, 225983, 225984, 225985,
+    235830,
+    -- Midnight / Silvermoon City
+    243167, -- Dungeoneer's Training Dummy <Tanking>
+    243205, -- Reinforced Golem <Raider's Training Dummy>
+    243207, -- Training Dummy <Damage>
+    243208, -- Cleave Training Dummy <Damage>
+    243211, -- PvP Training Dummy <Damage>
+}) do
+    TRAINING_DUMMY_IDS[id] = true
+end
+
+local dummyAutoStartedThisCombat = false
 
 local benchmark = {
     mode = "idle", -- idle, armed, waitingData, running, complete, cancelled, noDamage
@@ -82,6 +111,7 @@ end
 local function EnsureDB()
     if not ns.db then return nil end
     if type(ns.db.benchmarkHistory) ~= "table" then ns.db.benchmarkHistory = {} end
+    if ns.db.benchmarkAutoDummy == nil then ns.db.benchmarkAutoDummy = true end
     if ns.db.benchmarkDuration ~= 30 and ns.db.benchmarkDuration ~= 60 and ns.db.benchmarkDuration ~= 120 then
         ns.db.benchmarkDuration = 60
     end
@@ -160,6 +190,19 @@ local function ReadPlayerDamageTotal()
         end
     end
     return 0
+end
+
+local function UnitNPCID(unit)
+    local guid = UnitGUID and UnitGUID(unit)
+    if not Safe(guid) or type(guid) ~= "string" then return nil end
+    local unitType, _, _, _, _, npcID = strsplit("-", guid)
+    if unitType ~= "Creature" and unitType ~= "Vehicle" then return nil end
+    return tonumber(npcID)
+end
+
+function ns.IsTrainingDummyUnit(unit)
+    local npcID = UnitNPCID(unit or "target")
+    return npcID ~= nil and TRAINING_DUMMY_IDS[npcID] == true
 end
 
 local function CancelTicker()
@@ -261,6 +304,18 @@ local function UpdateUI()
     end
 
     frame._startButton._text:SetText(IsActive() and (L["BENCHMARK_STOP"] or "Stop") or (L["BENCHMARK_START"] or "Start"))
+    if frame._autoDummyButton then
+        local enabled = EnsureDB() and ns.db.benchmarkAutoDummy ~= false
+        frame._autoDummyButton._text:SetText(enabled
+            and (L["BENCHMARK_AUTO_DUMMY_ON"] or "Auto dummy: On")
+            or (L["BENCHMARK_AUTO_DUMMY_OFF"] or "Auto dummy: Off"))
+        local ar, ag, ab = Accent()
+        if enabled then
+            frame._autoDummyButton:SetBackdropBorderColor(ar, ag, ab, 0.82)
+        else
+            frame._autoDummyButton:SetBackdropBorderColor(0.20, 0.20, 0.23, 0.82)
+        end
+    end
 
     local elapsed = 0
     local damage = 0
@@ -431,6 +486,28 @@ local function ObserveDamage()
     UpdateUI()
 end
 
+local function TryAutoStartOnDummy()
+    local db = EnsureDB()
+    if not db or db.benchmarkAutoDummy == false or dummyAutoStartedThisCombat or IsActive() then return false end
+    if not ns.IsTrainingDummyUnit or not ns.IsTrainingDummyUnit("target") then return false end
+
+    dummyAutoStartedThisCombat = true
+    if ns.OpenBenchmark then ns.OpenBenchmark() end
+    benchmark.accumulated = 0
+    benchmark.lastTotal = nil
+    benchmark.result = nil
+    benchmark.profile = nil
+
+    local baseline = ReadPlayerDamageTotal()
+    if baseline ~= nil then
+        BeginBenchmarkClock(baseline)
+    else
+        benchmark.mode = "waitingData"
+        UpdateUI()
+    end
+    return true
+end
+
 local function MakeButton(parent, width, height, label)
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
     button:SetSize(width, height)
@@ -550,6 +627,15 @@ local function EnsureFrame()
         frame._durationButtons[duration] = button
         previous = button
     end
+
+    local autoDummy = MakeButton(frame, 126, 24, L["BENCHMARK_AUTO_DUMMY_ON"] or "Auto dummy: On")
+    autoDummy:SetPoint("LEFT", previous, "RIGHT", 8, 0)
+    autoDummy:SetScript("OnClick", function()
+        local db = EnsureDB()
+        if db then db.benchmarkAutoDummy = not (db.benchmarkAutoDummy ~= false) end
+        UpdateUI()
+    end)
+    frame._autoDummyButton = autoDummy
 
     local start = MakeButton(frame, 112, 28, L["BENCHMARK_START"] or "Start")
     start:SetPoint("TOPRIGHT", -22, -75)
@@ -762,6 +848,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
     end
 
     if event == "PLAYER_REGEN_DISABLED" then
+        if TryAutoStartOnDummy() then return end
         if benchmark.mode == "armed" then
             local baseline = ReadPlayerDamageTotal()
             if baseline == nil then baseline = benchmark.lastObservedTotal or 0 end
@@ -772,10 +859,12 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 
     if event == "PLAYER_REGEN_ENABLED" then
         ObserveDamage()
+        dummyAutoStartedThisCombat = false
         return
     end
 
     -- DAMAGE_METER_* events: this is the readable C_DamageMeter context.
+    if UnitAffectingCombat and UnitAffectingCombat("player") then TryAutoStartOnDummy() end
     ObserveDamage()
 end)
 

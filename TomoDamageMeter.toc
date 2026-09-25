@@ -42,6 +42,7 @@ Locales\MeterModes.lua
 Locales\SpellDetails.lua
 Locales\UIPolish.lua
 Locales\Benchmark.lua
+Locales\FightHistory.lua
 
 Modules\Style.lua
 Modules\Skins.lua
@@ -66,6 +67,8 @@ Modules\VisualV2.lua
 Modules\MeterUIV3.lua
 Modules\SecondaryUIV3.lua
 Modules\Benchmark.lua
+Modules\FightHistory.lua
+Modules\HistorySettings.lua
 
 Config\Widgets.lua
 Config\WidgetsV3.lua

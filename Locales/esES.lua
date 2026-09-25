@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: Spanish
--- Catalog revision: 2.8.2 (keystone sync library; no new translatable strings)
+-- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "esES" and GetLocale() ~= "esMX" then return end

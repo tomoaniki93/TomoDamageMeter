@@ -1,6 +1,6 @@
 # Changelog
 
-# 2.8.2 - Damage Benchmark and Shared Mythic+ Keystone Synchronization
+# 2.8.2 - Damage Benchmark, Fight History and Keystone Synchronization
 
 ## Damage Benchmark
 - Added a dedicated Damage Benchmark window for repeatable personal DPS tests.
@@ -12,8 +12,37 @@
   DPS, duration and date, with an option to clear the history.
 - Added a stopwatch launcher to every meter window and the
   `/tdm benchmark [30|60|120]` and `/tdm bench [30|60|120]` commands.
+- Added an optional, persistent auto-start mode that detects training dummies by
+  NPC ID and starts a benchmark when combat begins. It is enabled by default
+  and can be toggled directly from the benchmark window.
 - Added a read-only `TomoDamageMeter.GetBenchmarkHistory()` API for future
   TomoSuite integrations.
+
+## Fight History
+- Added automatic, persistent combat history for dungeons, raids and scenarios,
+  capped at the 80 most recent fights.
+- Added separate boss and trash entries with instance, encounter, date, duration
+  and boss kill or wipe information.
+- Added paginated damage and healing rankings with DPS or HPS, total output,
+  interrupts and deaths for every recorded player.
+- Added All Fights and Bosses Only filters, paginated fight selection and a
+  history-clear action.
+- Added `/tdm fights` and `/tdm fight` commands plus the read-only
+  `TomoDamageMeter.GetFightHistory()` API.
+- Added a boss-centric History page to Settings V2 with aggregate pull, kill,
+  best DPS, best HPS and interrupt statistics for each saved encounter.
+- Added paginated per-pull results with date, outcome, duration, DPS, HPS,
+  interrupts, dispels, deaths and avoidable damage, plus a shortcut to the full
+  history window.
+- The Settings history refreshes immediately when a fight is saved or the
+  persistent history is cleared.
+
+## Interface
+- Added Damage Benchmark and Fight History shortcuts to the minimap quick menu.
+- Added a compact book launcher to every meter window for direct access to the
+  persistent Fight History.
+- Added `Modules/FightHistory.lua`, `Modules/HistorySettings.lua` and the
+  dedicated Fight History locale extension to the addon load order.
 
 ## Keystone Synchronization
 - Added the bundled `LibTomoKeystoneSync-1.0` library and loaded it before the
@@ -30,6 +59,11 @@
   parsing.
 - Preserves test state across damage-meter session resets and safely cancels
   the benchmark ticker at logout.
+- Captures fight history from stable Blizzard damage-meter session IDs, merges
+  multi-segment encounters and prevents duplicate records when combat and
+  encounter completion events report the same fight.
+- Keeps all fight-history collection event-driven and validates secret or
+  unavailable values before storing plain data.
 - Uses the existing `TOMOKEYS` protocol for interoperability with other Tomo
   addons and delegates transport to TomoMod when its native key sync is
   available, preventing duplicate addon messages.
@@ -39,10 +73,13 @@
   the embedded library remains harmless on clients without Mythic+ support.
 
 ## Localization
-- Synchronized all nine locale catalogs and the three shared locale extensions
+- Synchronized all nine supported locale catalogs and feature locale extensions
   to revision 2.8.2.
-- Added localized Damage Benchmark labels, status messages, history columns and
-  command help for all nine supported locales.
+- Added localized Damage Benchmark, full Fight History and boss-centric History
+  settings labels, status messages, table columns, filters, tooltips and command
+  help for all nine supported locales.
+- Centralized Fight History translations in `Locales/FightHistory.lua` with an
+  English fallback for unsupported or incomplete locales.
 
 # 2.8.1 - Reliability, Audit and Release Tooling
 

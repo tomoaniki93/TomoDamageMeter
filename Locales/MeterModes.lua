@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 local L = ns.L
 if not L then return end
 
--- Catalog revision: 2.8.2 (keystone sync library; no new translatable strings)
+-- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
 
 ----------------------------------------------------------------------
 -- v2.5 meter/session labels

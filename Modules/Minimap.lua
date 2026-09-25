@@ -178,6 +178,18 @@ local function OpenQuickMenu(owner)
                 if ns.RefreshSettingsV2 then ns.RefreshSettingsV2() end
             end)
 
+        if ns.ToggleBenchmark then
+            root:CreateButton(T("BENCHMARK_TITLE", "Damage Benchmark"), function()
+                ns.ToggleBenchmark()
+            end)
+        end
+
+        if ns.ToggleFightHistory then
+            root:CreateButton(T("FIGHT_HISTORY", "Fight History"), function()
+                ns.ToggleFightHistory()
+            end)
+        end
+
         root:CreateButton(
             AreAllLocked()
                 and T("MINIMAP_UNLOCK_ALL", "Unlock all")

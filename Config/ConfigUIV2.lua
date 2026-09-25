@@ -403,6 +403,7 @@ local function CreateSettingsPanelV2()
         { "appearance", T("SETTINGS_APPEARANCE", "Appearance") },
         { "windows",    T("SETTINGS_WINDOWS", "Windows") },
         { "minimap",    T("SETTINGS_MINIMAP", "Minimap") },
+        { "history",    T("HISTORY_GUI", "History") },
         { "reports",    T("REPORT", "Report") },
     }
 
@@ -1013,6 +1014,15 @@ local function CreateSettingsPanelV2()
         "TDM also appears in Blizzard's Addon Compartment, so settings remain reachable even if the minimap button is hidden."))
     ms.y = ms.y + 54
     ms:Finish()
+
+    ------------------------------------------------------------------
+    -- History
+    ------------------------------------------------------------------
+    if ns.CreateHistorySettingsPage then
+        local historyPage = ns.CreateHistorySettingsPage(host)
+        pages.history = historyPage
+        Track(historyPage)
+    end
 
     ------------------------------------------------------------------
     -- Reports

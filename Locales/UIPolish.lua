@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- UI Polish locale extension / 2.7.5
--- Catalog revision: 2.8.2 (keystone sync library; no new translatable strings)
+-- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
 ----------------------------------------------------------------------
 
 local locale = GetLocale()

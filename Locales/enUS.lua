@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: English (default / fallback)
--- Catalog revision: 2.8.2 (keystone sync library; no new translatable strings)
+-- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
 ----------------------------------------------------------------------
 
 local L = {}
