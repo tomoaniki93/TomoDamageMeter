@@ -21,6 +21,7 @@ local bossesOnly = false
 local mode = "damage"
 local playerPage = 1
 local activeEncounter
+local UpdateUI
 
 local function Secret(v)
     return v ~= nil and issecretvalue and issecretvalue(v)
@@ -370,7 +371,7 @@ local function SortedPlayers(fight)
     return out
 end
 
-local function UpdateUI()
+UpdateUI = function()
     if not frame then return end
     local history = FilteredHistory()
     local pages = math.max(1, math.ceil(#history / LEFT_ROWS))
