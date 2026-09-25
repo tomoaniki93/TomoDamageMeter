@@ -21,7 +21,7 @@ local TEX_GLOW = TEX_ROOT .. "TDM_FrameGlow_128"
 
 local MIN_WIDTH = 300
 local MIN_HEIGHT = 150
-local HEADER_H = 48
+local HEADER_H = 60
 local HEADER_PAD = 7
 
 -- Vertical grid of the header, as offsets from its top edge. Two text rows,
@@ -293,7 +293,7 @@ function ns.CreateMeterWindow(cfg)
     local logo = header:CreateTexture(nil, "ARTWORK")
     logo:SetTexture(TEX_LOGO)
     logo:SetSize(30, 30)
-    logo:SetPoint("LEFT", header, "LEFT", HEADER_PAD, 0)
+    logo:SetPoint("TOPLEFT", header, "TOPLEFT", HEADER_PAD, -7)
 
     local catBtn = CreateFrame("Button", nil, header, "BackdropTemplate")
     catBtn:SetSize(50, ROW1_H)
@@ -373,11 +373,25 @@ function ns.CreateMeterWindow(cfg)
     local ordered = { resetBtn, reportBtn, lockBtn, detailsBtn, targetBtn, gearBtn }
     for i, btn in ipairs(ordered) do
         if i == 1 then
-            btn:SetPoint("RIGHT", header, "RIGHT", -HEADER_PAD, 0)
+            btn:SetPoint("TOPRIGHT", header, "TOPRIGHT", -HEADER_PAD, -6)
         else
             btn:SetPoint("RIGHT", ordered[i - 1], "LEFT", -BUTTON_GAP, 0)
         end
     end
+
+    -- Dedicated second utility row. History sits directly under Report and
+    -- Benchmark directly under Reset, using exactly the same 20 px grid and
+    -- 1 px horizontal gap as the native action row above.
+    local historyLauncherAnchor = CreateFrame("Frame", nil, header)
+    historyLauncherAnchor:SetSize(BUTTON_SIZE, BUTTON_SIZE)
+    historyLauncherAnchor:SetPoint(
+        "TOPRIGHT", header, "TOPRIGHT",
+        -(HEADER_PAD + BUTTON_SIZE + BUTTON_GAP), -30
+    )
+
+    local benchmarkLauncherAnchor = CreateFrame("Frame", nil, header)
+    benchmarkLauncherAnchor:SetSize(BUTTON_SIZE, BUTTON_SIZE)
+    benchmarkLauncherAnchor:SetPoint("TOPRIGHT", header, "TOPRIGHT", -HEADER_PAD, -30)
 
     -- The action cluster owns the right side of the header. The timer now lives
     -- on the lower text row instead of trying to squeeze between the session
@@ -1208,6 +1222,8 @@ function ns.CreateMeterWindow(cfg)
     local win = {
         frame = window,
         cfg = cfg,
+        HistoryLauncherAnchor = historyLauncherAnchor,
+        BenchmarkLauncherAnchor = benchmarkLauncherAnchor,
         BumpGeneration = function() state.dataGeneration = state.dataGeneration + 1 end,
         ClearData = state.ClearData,
         Refresh = state.ScheduleRefresh,

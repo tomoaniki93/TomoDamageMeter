@@ -37,6 +37,18 @@
 - The Settings history refreshes immediately when a fight is saved or the
   persistent history is cleared.
 
+## Fight History Reliability
+- Fixed completed boss encounters occasionally being omitted from persistent
+  history when `ENCOUNTER_END` fired before Blizzard published the corresponding
+  historical damage-meter session.
+- Added a synchronous Current-session fallback at encounter end, combat end and
+  damage-meter session updates while keeping capture fully event-driven.
+- Existing trash entries are now upgraded in place when the same stable session
+  is subsequently identified as a boss, preserving encounter name, result,
+  group size and difficulty metadata without creating duplicates.
+- An unresolved completed encounter is finalized before a new encounter starts,
+  preventing delayed session publication from dropping the previous boss.
+
 ## Interface
 - Added Damage Benchmark and Fight History shortcuts to the minimap quick menu.
 - Added a compact book launcher to every meter window for direct access to the
@@ -80,6 +92,8 @@
   help for all nine supported locales.
 - Centralized Fight History translations in `Locales/FightHistory.lua` with an
   English fallback for unsupported or incomplete locales.
+- The boss-capture reliability fix introduces no new player-facing strings, so
+  all nine 2.8.2 locale sets remain complete and unchanged.
 
 # 2.8.1 - Reliability, Audit and Release Tooling
 

@@ -2,6 +2,7 @@ local ADDON_NAME, ns = ...
 local L = ns.L
 
 ----------------------------------------------------------------------
+-- Damage Benchmark - 2.8.3
 --
 -- A timed, local damage test built on Blizzard's C_DamageMeter data.
 -- Important: C_DamageMeter values are read only from damage-meter/combat event
@@ -12,7 +13,7 @@ local L = ns.L
 local HISTORY_LIMIT = 50
 local DURATIONS = { 30, 60, 120 }
 local TICK_INTERVAL = 0.10
-local LAUNCHER_ICON = "Interface\\Icons\\INV_Misc_PocketWatch_01"
+local LAUNCHER_ICON = "Interface\\AddOns\\TomoDamageMeter\\Assets\\Textures\\benchmark"
 
 -- NPC IDs are used instead of localized names so dummy detection works on all
 -- supported clients.  The list covers legacy capitals through Dragonflight /
@@ -223,11 +224,14 @@ local function UpdateLauncherButtons()
         if active then
             button:SetBackdropColor(ar * 0.16, ag * 0.16, ab * 0.16, 0.98)
             button:SetBackdropBorderColor(ar, ag, ab, 0.94)
-            if button._icon then button._icon:SetDesaturated(false) end
+            if button._icon then button._icon:SetVertexColor(1, 1, 1) end
         else
             button:SetBackdropColor(0.025, 0.025, 0.032, 0.94)
             button:SetBackdropBorderColor(0.20, 0.20, 0.23, 0.86)
-            if button._icon then button._icon:SetDesaturated(true) end
+            if button._icon then
+                local c = ns.TEXT_MUTED or { 0.40, 0.40, 0.43 }
+                button._icon:SetVertexColor(c[1], c[2], c[3])
+            end
         end
     end
 end
@@ -747,21 +751,25 @@ end
 local function AttachLauncher(win)
     if not win or not win.frame or win._benchmarkLauncher then return end
 
-    -- The compact 300 px header has no room for a seventh 20 px action button.
-    -- This 14 px stopwatch sits on the lower-right corner of the 30 px TDM logo
-    -- (x 7..37) and remains left of the category control (starts at x 42).
+    -- Second-row utility button.  Its center is aligned exactly under the
+    -- right-most 20 px action button (Reset), while staying clear of the logo
+    -- and the main header controls.  History mirrors this one column to the left.
     local button = CreateFrame("Button", nil, win.frame, "BackdropTemplate")
-    button:SetSize(14, 14)
-    button:SetPoint("TOPLEFT", win.frame, "TOPLEFT", 25, -26)
+    button:SetSize(20, 20)
+    if win.BenchmarkLauncherAnchor then
+        button:SetAllPoints(win.BenchmarkLauncherAnchor)
+    else
+        button:SetPoint("TOPRIGHT", win.frame, "TOPRIGHT", -7, -30)
+    end
     button:SetFrameLevel(win.frame:GetFrameLevel() + 12)
     SetBackdrop(button, 0.025, 0.025, 0.032, 0.94, 0.20, 0.20, 0.23, 0.86)
 
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetTexture(LAUNCHER_ICON)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    icon:SetPoint("TOPLEFT", 1, -1)
-    icon:SetPoint("BOTTOMRIGHT", -1, 1)
-    icon:SetDesaturated(true)
+    icon:SetSize(11, 11)
+    icon:SetPoint("CENTER")
+    local muted = ns.TEXT_MUTED or { 0.40, 0.40, 0.43 }
+    icon:SetVertexColor(muted[1], muted[2], muted[3])
     button._icon = icon
 
     button:SetScript("OnClick", function()
@@ -771,7 +779,7 @@ local function AttachLauncher(win)
         local ar, ag, ab = Accent()
         self:SetBackdropColor(ar * 0.18, ag * 0.18, ab * 0.18, 0.98)
         self:SetBackdropBorderColor(ar, ag, ab, 0.96)
-        self._icon:SetDesaturated(false)
+        self._icon:SetVertexColor(1, 1, 1)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText(L["BENCHMARK_TIP"] or "Open Damage Benchmark", 1, 1, 1)
         GameTooltip:Show()

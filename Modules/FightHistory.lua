@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 local L = ns.L
 
 ----------------------------------------------------------------------
--- Fight History - 2.8.2
+-- Fight History - 2.8.3
 --
 -- Persists completed dungeon / raid combats in SavedVariables so Blizzard's
 -- single Expired / Previous Fight slot is no longer the only historical view.
@@ -12,7 +12,7 @@ local L = ns.L
 local HISTORY_LIMIT = 80
 local LEFT_ROWS = 11
 local PLAYER_ROWS = 14
-local HISTORY_LAUNCHER_ICON = "Interface\\Icons\\INV_Misc_Book_09"
+local HISTORY_LAUNCHER_ICON = "Interface\\AddOns\\TomoDamageMeter\\Assets\\Textures\\history"
 
 local frame
 local selectedFight
@@ -198,7 +198,7 @@ local function ReadTopEnemy(sessionID)
     return SafeText(sources[1].name, nil)
 end
 
-local function CaptureCurrent()
+local function CaptureSnapshot(sessionID, sessionName)
     local instance = InTrackedInstance()
     if not instance then return nil end
     local players = {}
@@ -206,7 +206,6 @@ local function CaptureCurrent()
     local D = Enum and Enum.DamageMeterType
     if not D then return nil end
 
-    local sessionID, sessionName = LatestSessionInfo()
     local damageType = D.DamageDone or D.Dps
     local healingType = D.HealingDone or D.Hps
     duration = math.max(duration, ReadMetric(players, sessionID, damageType, "damage"))
@@ -231,6 +230,21 @@ local function CaptureCurrent()
     instance.enemy = sessionName or ReadTopEnemy(sessionID)
     instance.finished = time()
     return instance
+end
+
+local function CaptureCurrent()
+    local sessionID, sessionName = LatestSessionInfo()
+    return CaptureSnapshot(sessionID, sessionName)
+end
+
+-- Boss encounters have slightly different event timing from normal trash pulls:
+-- ENCOUNTER_END can fire before Blizzard has appended the just-finished fight to
+-- GetAvailableCombatSessions().  In that window LatestSessionInfo() still points
+-- at the preceding trash pull.  Reading the Current session synchronously from
+-- ENCOUNTER_END / PLAYER_REGEN_ENABLED gives us a plain-number fallback without
+-- timer polling and prevents the boss from disappearing from persistent history.
+local function CaptureLiveCurrent()
+    return CaptureSnapshot(nil, nil)
 end
 
 local function MergeParts(parts)
@@ -272,19 +286,32 @@ end
 local function SaveFight(snapshot, encounter)
     local db = EnsureDB()
     if not db or not snapshot then return end
-    -- PLAYER_REGEN_ENABLED and ENCOUNTER_END can both expose the same stable
-    -- combat-session ID.  Never persist that segment twice.
-    if snapshot.sessionID ~= nil then
-        for _, saved in ipairs(db.fightHistory) do
-            if type(saved) == "table" and saved.sessionID == snapshot.sessionID then return end
-        end
-    end
+
     snapshot.isBoss = encounter ~= nil
     snapshot.encounterID = encounter and encounter.id or nil
     snapshot.name = encounter and encounter.name or (snapshot.enemy or L["FIGHT_HISTORY_TRASH"] or "Trash")
     snapshot.success = encounter and encounter.success or nil
     snapshot.groupSize = encounter and encounter.groupSize or nil
     snapshot.difficultyID = (encounter and encounter.difficultyID) or snapshot.difficultyID
+
+    -- PLAYER_REGEN_ENABLED and ENCOUNTER_END can both expose the same stable
+    -- combat-session ID.  A rare event ordering can also save that session as
+    -- trash just before ENCOUNTER_END identifies it as a boss.  In that case
+    -- upgrade the existing row instead of discarding the boss metadata.
+    if snapshot.sessionID ~= nil then
+        for index, saved in ipairs(db.fightHistory) do
+            if type(saved) == "table" and saved.sessionID == snapshot.sessionID then
+                if snapshot.isBoss and not saved.isBoss then
+                    db.fightHistory[index] = snapshot
+                    if selectedFight == saved then selectedFight = snapshot end
+                    if frame and frame:IsShown() then UpdateUI() end
+                    if ns.RefreshSettingsV2 then ns.RefreshSettingsV2() end
+                end
+                return
+            end
+        end
+    end
+
     table.insert(db.fightHistory, 1, snapshot)
     while #db.fightHistory > HISTORY_LIMIT do table.remove(db.fightHistory) end
     if frame and frame:IsShown() then selectedFight = snapshot end
@@ -314,6 +341,7 @@ end
 local function FinalizeEncounter(encounter)
     if not encounter or encounter.saved then return end
     local merged = MergeParts(encounter.parts)
+    if not merged then merged = encounter.fallbackSnapshot end
     if not merged then return end
     encounter.saved = true
     SaveFight(merged, encounter)
@@ -578,21 +606,25 @@ end
 local function AttachHistoryLauncher(win)
     if not win or not win.frame or win._fightHistoryLauncher then return end
 
-    -- Benchmark already uses the lower-right corner of the 30 px TDM logo.
-    -- History mirrors it on the lower-left, making both new features visible
-    -- without widening the six-button action cluster on 300 px meter windows.
+    -- Second-row utility button aligned under Report, directly left of the
+    -- Benchmark button that sits under Reset.  The two centers use the same
+    -- 21 px column rhythm as the six native action buttons above them.
     local button = CreateFrame("Button", nil, win.frame, "BackdropTemplate")
-    button:SetSize(14, 14)
-    button:SetPoint("TOPLEFT", win.frame, "TOPLEFT", 9, -26)
+    button:SetSize(20, 20)
+    if win.HistoryLauncherAnchor then
+        button:SetAllPoints(win.HistoryLauncherAnchor)
+    else
+        button:SetPoint("TOPRIGHT", win.frame, "TOPRIGHT", -28, -30)
+    end
     button:SetFrameLevel(win.frame:GetFrameLevel() + 12)
     SetBackdrop(button, 0.025, 0.025, 0.032, 0.94, 0.20, 0.20, 0.23, 0.86)
 
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetTexture(HISTORY_LAUNCHER_ICON)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    icon:SetPoint("TOPLEFT", 1, -1)
-    icon:SetPoint("BOTTOMRIGHT", -1, 1)
-    icon:SetDesaturated(true)
+    icon:SetSize(11, 11)
+    icon:SetPoint("CENTER")
+    local muted = ns.TEXT_MUTED or { 0.40, 0.40, 0.43 }
+    icon:SetVertexColor(muted[1], muted[2], muted[3])
     button._icon = icon
 
     button:SetScript("OnClick", function()
@@ -602,7 +634,7 @@ local function AttachHistoryLauncher(win)
         local r, g, b = Accent()
         self:SetBackdropColor(r * 0.18, g * 0.18, b * 0.18, 0.98)
         self:SetBackdropBorderColor(r, g, b, 0.96)
-        self._icon:SetDesaturated(false)
+        self._icon:SetVertexColor(1, 1, 1)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText(L["FIGHT_HISTORY_TIP"] or "Open persistent fight history", 1, 1, 1)
         GameTooltip:Show()
@@ -611,7 +643,8 @@ local function AttachHistoryLauncher(win)
         GameTooltip:Hide()
         self:SetBackdropColor(0.025, 0.025, 0.032, 0.94)
         self:SetBackdropBorderColor(0.20, 0.20, 0.23, 0.86)
-        self._icon:SetDesaturated(true)
+        local muted = ns.TEXT_MUTED or { 0.40, 0.40, 0.43 }
+        self._icon:SetVertexColor(muted[1], muted[2], muted[3])
     end)
 
     win._fightHistoryLauncher = button
@@ -656,6 +689,12 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LOGOUT" then return end
 
     if event == "ENCOUNTER_START" then
+        -- Do not let an already-ended encounter vanish if the client starts the
+        -- next one before publishing a historical session ID for the previous.
+        if activeEncounter and activeEncounter.ended then
+            FinalizeEncounter(activeEncounter)
+        end
+
         local encounterID, encounterName, difficultyID, groupSize = ...
         local baselineSessionID = LatestSessionInfo()
         activeEncounter = {
@@ -680,13 +719,21 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             activeEncounter.groupSize = SafeNumber(groupSize) > 0 and SafeNumber(groupSize) or activeEncounter.groupSize
             activeEncounter.success = not Secret(success) and success == 1 or false
             activeEncounter.ended = true
+
+            -- The historical-session list can lag behind ENCOUNTER_END.  Keep a
+            -- direct Current-session snapshot as a fallback before trying the
+            -- stable-ID path.  Both reads happen synchronously in this event.
+            local live = CaptureLiveCurrent()
+            if live then activeEncounter.fallbackSnapshot = live end
+
             -- ENCOUNTER_END can arrive before or after PLAYER_REGEN_ENABLED.
-            -- Try one event-side capture now; the session-ID de-duplication makes
-            -- a later regen/update harmless if it exposes the same segment.
+            -- Try one stable event-side capture too; session-ID de-duplication
+            -- makes a later regen/update harmless if it exposes the same segment.
             AppendEncounterPart(activeEncounter, CaptureCurrent())
-            -- If regen was already seen, its snapshot is the final completed
-            -- segment even when ENCOUNTER_END arrives a few frames later.
-            if activeEncounter.sawRegen and #activeEncounter.parts > 0 then
+
+            -- If regen was already seen, we now have either a stable segment or
+            -- the direct Current fallback, so the boss is safe to persist.
+            if activeEncounter.sawRegen and (#activeEncounter.parts > 0 or activeEncounter.fallbackSnapshot) then
                 FinalizeEncounter(activeEncounter)
                 activeEncounter = nil
                 if frame and frame:IsShown() then UpdateUI() end
@@ -699,6 +746,12 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
         local snapshot = CaptureCurrent()
         if activeEncounter then
             activeEncounter.sawRegen = true
+
+            -- Keep the direct Current read as a fallback for boss fights whose
+            -- historical session ID has not been published yet.
+            local live = CaptureLiveCurrent()
+            if live then activeEncounter.fallbackSnapshot = live end
+
             AppendEncounterPart(activeEncounter, snapshot)
             if activeEncounter.ended then
                 FinalizeEncounter(activeEncounter)
@@ -715,8 +768,10 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
     -- next damage-meter update is still an event-side readable context, so it
     -- provides a final chance to persist the boss without timer polling.
     if event == "DAMAGE_METER_CURRENT_SESSION_UPDATED" and activeEncounter and activeEncounter.ended then
+        local live = CaptureLiveCurrent()
+        if live then activeEncounter.fallbackSnapshot = live end
         AppendEncounterPart(activeEncounter, CaptureCurrent())
-        if #activeEncounter.parts > 0 then
+        if #activeEncounter.parts > 0 or activeEncounter.fallbackSnapshot then
             FinalizeEncounter(activeEncounter)
             activeEncounter = nil
             if frame and frame:IsShown() then UpdateUI() end

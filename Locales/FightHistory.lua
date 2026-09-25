@@ -3,7 +3,8 @@ local L = ns.L
 if not L then return end
 
 ----------------------------------------------------------------------
--- Fight History localization - 2.8.2
+-- Fight History localization
+-- Catalog revision: 2.8.2 (boss capture fix adds no translatable strings)
 -- Covers the full history window and the boss-centric Settings page.
 ----------------------------------------------------------------------
 
