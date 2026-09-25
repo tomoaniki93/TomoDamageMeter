@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 local L = ns.L
 if not L then return end
 
--- Catalog revision: 2.8.1 (layout-only update; no new translatable strings)
+-- Catalog revision: 2.8.2 (keystone sync library; no new translatable strings)
 
 local locale = GetLocale and GetLocale() or "enUS"
 

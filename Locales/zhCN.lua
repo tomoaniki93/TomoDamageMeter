@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: Simplified Chinese
--- Catalog revision: 2.8.1 (layout-only update; no new translatable strings)
+-- Catalog revision: 2.8.2 (keystone sync library; no new translatable strings)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "zhCN" then return end

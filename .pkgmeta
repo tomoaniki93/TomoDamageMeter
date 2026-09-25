@@ -1,0 +1,31 @@
+# .pkgmeta — packaging rules, read by the BigWigsMods packager, the CurseForge
+# automatic packager and Tools/build_release.py (which also validates the
+# result). Without it, every file in the repository ships.
+
+package-as: TomoDamageMeter
+
+# Libraries are committed in-tree, so there is nothing to pull.
+enable-nolib-creation: no
+
+# Files and folders that must NOT ship inside the released addon zip.
+ignore:
+  - .git
+  - .github
+  - .gitattributes
+  - .gitignore
+  - .luacheckrc
+  - .pkgmeta
+  - .vscode
+  - README.md
+  # Developer tooling: CI linters, checks and the release builder. Nothing in
+  # the TOC loads them.
+  - Tools
+  # Source artwork (CurseForge page, README). No Lua or TOC references them;
+  # the addon itself uses TDM_Icon_64 and the smaller header/sheen textures.
+  - Assets/Textures/TDM_Logo_1024x512.tga
+  - Assets/Textures/TDM_Icon_256.tga
+  - Assets/Textures/TDM_Icon_128.tga
+  - Assets/Textures/TDM_Icon_32.tga
+  - Assets/Textures/TDM_Icon_16.tga
+  - "**/*.bak"
+  - "**/.DS_Store"

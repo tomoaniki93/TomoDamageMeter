@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint & checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua 5.1 and luacheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.1 liblua5.1-0-dev luarocks build-essential
+          sudo luarocks --lua-version=5.1 install luacheck
+
+      # Hard gate: every non-library Lua file must compile under Lua 5.1
+      # (this is the "WoW will load it" check). A UTF-8 BOM is stripped first
+      # because the standalone luac5.1 rejects it, while WoW handles it natively.
+      - name: luac5.1 syntax check
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            tmp="$(mktemp)"
+            sed '1s/^\xEF\xBB\xBF//' "$f" > "$tmp"
+            if ! luac5.1 -p "$tmp"; then
+              echo "::error file=$f::luac5.1 syntax error"
+              fail=1
+            fi
+            rm -f "$tmp"
+          done < <(git ls-files '*.lua' | grep -v '^Libs/')
+          exit $fail
+
+      # Hard gate: every TOC entry exists, and every addon file is loaded.
+      - name: TOC consistency
+        run: python3 Tools/check_toc.py
+
+      # Hard gate: the release builder must reject broken packages (missing,
+      # miscased or excluded load files, assets excluded while still used,
+      # missing license text, leaked dev files) -- tested on fixtures first,
+      # then on the real tree.
+      - name: Release builder self-test
+        run: python3 Tools/test_build_release.py
+
+      - name: Release package check
+        run: python3 Tools/build_release.py --check
+
+      # Hard gate: the secret-value linter must itself be sound (detection,
+      # silence and mutation fixtures). Shared with TomoMod.
+      - name: Secret-value linter self-test
+        run: python3 Tools/test_lint_secret_values.py
+
+      # Hard gate on new debt only. Tools/secret_baseline.txt holds accepted
+      # findings; shrink it as they are fixed, never grow it to get green.
+      - name: Secret-value audit
+        run: python3 Tools/lint_secret_values.py --baseline Tools/secret_baseline.txt
+
+      # Hard gate: file-scope locals referenced before their declaration
+      # (the /tdm diag bug class, invisible to luacheck with 113 off).
+      - name: Forward references
+        run: python3 Tools/lint_forward_refs.py
+
+      # Hard gate: missing values, uninitialized locals and invalid control flow.
+      - name: Critical Lua diagnostics
+        run: luacheck . --only 221 321 511 512 521 531
+
+      # Advisory: the remaining backlog (mostly unused locals) stays visible
+      # without failing the build.
+      - name: luacheck
+        continue-on-error: true
+        run: luacheck .

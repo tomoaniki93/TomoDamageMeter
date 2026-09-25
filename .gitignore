@@ -1,0 +1,31 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# Packaging output (BigWigsMods packager writes here)
+/.release/
+*.zip
+
+# Backups / temp
+*.bak
+*.old
+*.orig
+*.tmp
+
+# Python bytecode (Tools/)
+__pycache__/
+*.pyc
+
+# Lua bytecode
+*.luac
+luac.out
+
+# Logs
+*.log

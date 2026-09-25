@@ -1,5 +1,29 @@
 # Changelog
 
+# 2.8.2 - Shared Mythic+ Keystone Synchronization
+
+## Added
+- Added the bundled `LibTomoKeystoneSync-1.0` library and loaded it before the
+  addon locale and feature modules.
+- Added automatic exchange of Mythic+ keystone map and level, player class and
+  specialization, and current seasonal rating with party, raid, instance and
+  guild members.
+- Added a shared query and callback API so compatible addons can read cached
+  keystone data and react to updates without implementing their own transport.
+
+## Compatibility and Reliability
+- Uses the existing `TOMOKEYS` protocol for interoperability with other Tomo
+  addons and delegates transport to TomoMod when its native key sync is
+  available, preventing duplicate addon messages.
+- Throttles proactive broadcasts and randomizes request replies to limit addon
+  traffic when groups or guilds request keystone data.
+- Safely handles secret or unavailable values and optional Mythic+ events, so
+  the embedded library remains harmless on clients without Mythic+ support.
+
+## Localization
+- Synchronized all nine locale catalogs and the three shared locale extensions
+  to revision 2.8.2. This release adds no new player-facing translatable text.
+
 # 2.8.1 - Reliability, Audit and Release Tooling
 
 ## Fixed

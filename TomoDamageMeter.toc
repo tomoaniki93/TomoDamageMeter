@@ -15,7 +15,7 @@
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 2.8.1
+## Version: 2.8.2
 ## IconTexture: Interface\AddOns\TomoDamageMeter\Assets\Textures\TDM_Icon_64.tga
 ## AddonCompartmentFunc: TomoDamageMeter_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: TomoDamageMeter_OnAddonCompartmentEnter
@@ -27,6 +27,7 @@
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
+Libs\LibTomoKeystoneSync-1.0\LibTomoKeystoneSync-1.0.lua
 
 Locales\enUS.lua
 Locales\frFR.lua
