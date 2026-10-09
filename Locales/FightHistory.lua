@@ -4,7 +4,7 @@ if not L then return end
 
 ----------------------------------------------------------------------
 -- Fight History localization
--- Catalog revision: 2.8.2 (boss capture fix adds no translatable strings)
+-- Catalog revision: 2.8.3 (Combat Summary translations included in the base catalogs)
 -- Covers the full history window and the boss-centric Settings page.
 ----------------------------------------------------------------------
 

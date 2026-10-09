@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: Simplified Chinese
--- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
+-- Catalog revision: 2.8.3 (compact Combat Summary labels)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "zhCN" then return end
@@ -201,6 +201,8 @@ L["TIP_SESSION"] = "点击切换会话"
 -- 悬停提示
 L["TIP_TOP_SPELLS"] = "主要技能"
 L["TIP_TOTAL"] = "总计"
+L["COMBAT_SUMMARY_TITLE"] = "战斗摘要"
+L["SETTINGS_COMBAT_SUMMARY_OVERLAY"] = "紧凑战斗摘要"
 L["TIP_OVERKILL"] = "过量伤害"
 L["TIP_AVOIDABLE"] = "可避免伤害"
 L["TIP_KILLING_BLOW"] = "致命一击"

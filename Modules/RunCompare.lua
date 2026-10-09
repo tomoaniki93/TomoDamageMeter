@@ -196,16 +196,33 @@ local function EnsurePanel(recap)
     local title = header:CreateFontString(nil, "ARTWORK")
     title:SetFont(ns.GetFont(), 12, "OUTLINE")
     title:SetPoint("LEFT", 9, ns.GetFontNudge())
+    title:SetJustifyH("LEFT")
+    title:SetWordWrap(false)
     title:SetText(W.title)
     title:SetTextColor(1, 1, 1)
     panel._title = title
 
     local subtitle = header:CreateFontString(nil, "ARTWORK")
     subtitle:SetFont(ns.GetFont(), 10, "OUTLINE")
-    subtitle:SetPoint("RIGHT", -9, ns.GetFontNudge())
+    subtitle:SetPoint("RIGHT", header, "RIGHT", -182, ns.GetFontNudge())
     subtitle:SetJustifyH("RIGHT")
+    subtitle:SetWordWrap(false)
     ns.Tint(subtitle, "secondary")
     panel._subtitle = subtitle
+
+    -- SecondaryUIV3 reserves the top-right of this frame for the PERFORMANCE
+    -- badge and its identity button. Keep the native RunCompare title/status
+    -- inside the remaining header space so localized text can never render
+    -- underneath those controls.
+    local function LayoutHeaderText()
+        local width = math.max(1, header:GetWidth() or panel:GetWidth() or 540)
+        local subtitleWidth = math.min(150, math.max(96, math.floor(width * 0.20)))
+        local titleWidth = math.max(150, width - 182 - subtitleWidth - 20)
+        title:SetWidth(titleWidth)
+        subtitle:SetWidth(subtitleWidth)
+    end
+    header:HookScript("OnSizeChanged", LayoutHeaderText)
+    LayoutHeaderText()
 
     local redLine = panel:CreateTexture(nil, "OVERLAY")
     redLine:SetTexture(ns.FLAT)

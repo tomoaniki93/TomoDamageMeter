@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: English (default / fallback)
--- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
+-- Catalog revision: 2.8.3 (compact Combat Summary labels)
 ----------------------------------------------------------------------
 
 local L = {}
@@ -213,6 +213,8 @@ L["TIP_SESSION"] = "Click to cycle session"
 -- Hover tooltips
 L["TIP_TOP_SPELLS"] = "Top spells"
 L["TIP_TOTAL"] = "Total"
+L["COMBAT_SUMMARY_TITLE"] = "Combat summary"
+L["SETTINGS_COMBAT_SUMMARY_OVERLAY"] = "Compact combat summary"
 L["TIP_OVERKILL"] = "Overkill"
 L["TIP_AVOIDABLE"] = "Avoidable damage"
 L["TIP_KILLING_BLOW"] = "Killing blow"

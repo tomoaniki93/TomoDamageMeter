@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: French
--- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
+-- Catalog revision: 2.8.3 (compact Combat Summary labels)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "frFR" then return end
@@ -213,6 +213,8 @@ L["TIP_SESSION"] = "Cliquer pour changer de session"
 -- Infobulles de survol
 L["TIP_TOP_SPELLS"] = "Meilleurs sorts"
 L["TIP_TOTAL"] = "Total"
+L["COMBAT_SUMMARY_TITLE"] = "Résumé du combat"
+L["SETTINGS_COMBAT_SUMMARY_OVERLAY"] = "Résumé compact du combat"
 L["TIP_OVERKILL"] = "Surplus de dégâts"
 L["TIP_AVOIDABLE"] = "Dégâts évitables"
 L["TIP_KILLING_BLOW"] = "Coup fatal"

@@ -638,6 +638,13 @@ local function CreateSettingsPanelV2()
         function() return ns.db.showBarTooltips end,
         function(val) ns.db.showBarTooltips = val and true or false end), 24))
 
+    Track(left:Widget(ns.Widgets.CreateCheckbox(leftCol, T("SETTINGS_COMBAT_SUMMARY_OVERLAY", "Combat summary overlay"),
+        function() return ns.db.showCombatSummaryOverlay ~= false end,
+        function(val)
+            ns.db.showCombatSummaryOverlay = val and true or false
+            if not val and ns.HideCombatSummaryOverlay then ns.HideCombatSummaryOverlay() end
+        end), 24))
+
     left:Section(T("SETTINGS_MODULES", "Modules"))
 
     Track(left:Widget(ns.Widgets.CreateCheckbox(leftCol, T("SETTINGS_DEATH_RECAP_AUTO", "Death recap popup on death"),

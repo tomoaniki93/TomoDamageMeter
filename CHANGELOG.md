@@ -1,5 +1,66 @@
 # Changelog
 
+# 2.8.3 - Compact Combat Summary and Native DPS Benchmark
+
+## Compact Combat Summary
+- Added a compact combat summary beside hovered player bars while in combat
+  or when the displayed data contains restricted values.
+- Uses a 250-by-78 layout with the player name, combat summary subtitle,
+  DPS or HPS on the left and the total in parentheses on the right.
+- Action meters show only the total, left-aligned across the available width.
+- Removed the top-spell list and relative-output bar from the overlay.
+- Added red accent lines along the top and bottom edges and disabled text
+  wrapping to keep the summary compact.
+- Added a Compact Combat Summary setting, enabled by default. The overlay
+  follows the existing Bar Tooltips setting and hides immediately when disabled
+  or when the pointer leaves the bar.
+
+## Interface and Performance
+- Refreshes the visible summary every 0.35 seconds directly from the current
+  meter row, without an additional ticker or per-source spell queries.
+- Forwards numeric totals directly to UI widget setters and retains the regular
+  bar tooltip outside combat when the displayed values are unrestricted.
+- Added the Combat Summary module to the addon load order.
+
+## Native DPS Benchmark
+- The benchmark now samples Blizzard's native average DPS from the current DPS
+  session instead of calculating damage gained divided by the test duration.
+  Results reflect the native session average at the selected capture time.
+- Captures the first available DPS update at or after the 30, 60 or 120-second
+  threshold. If no fresh update arrives during the short capture window, the
+  latest available sample is frozen; unavailable data is shown as a dash.
+- Displays protected DPS values directly through the UI and freezes them for
+  the current UI session without converting or saving the protected numbers.
+- Saves positive, unrestricted DPS results to local history. Existing history
+  entries are retained.
+- Cancels an active test when the damage meter resets or combat ends before
+  the selected duration, preventing incomplete tests from being recorded.
+- Removed the damage total display and history damage column, and widened the
+  DPS column to focus the benchmark on native DPS snapshots.
+
+## Protected Benchmark History
+- Records completed benchmark attempts even when their DPS is protected by WoW.
+  Character, specialization, item level, duration and date are saved with a
+  protected-snapshot flag; the protected DPS number is never saved.
+- Keeps the frozen DPS available for display in history during the current UI
+  session. After a reload, the attempt remains visible with a localized
+  "Protected" label instead of the unavailable numeric value.
+- Places up to five recent protected attempts above ranked numeric results in
+  the five-row history view and marks them with an asterisk instead of a rank.
+- Updated the completion message to explain that the attempt is recorded while
+  its protected DPS remains visible only until the UI is reloaded.
+
+## Localization
+- Added the combat summary title in all nine supported locales and updated
+  the setting label to describe the compact layout, including English fallback.
+- Reuses the existing localized DPS/HPS labels; no new spell-detail strings
+  are required for the compact overlay.
+- Updated benchmark waiting, completion and unavailable-data messages in all
+  nine supported locales, and revised the protected DPS snapshot status to
+  explain attempt persistence and temporary numeric display.
+- Added the short "Protected" history label in all nine supported locales.
+- Updated all locale catalog and extension revision markers to 2.8.3.
+
 # 2.8.2 - Damage Benchmark, Fight History and Keystone Synchronization
 
 ## Damage Benchmark
@@ -56,6 +117,20 @@
 - Added `Modules/FightHistory.lua`, `Modules/HistorySettings.lua` and the
   dedicated Fight History locale extension to the addon load order.
 
+## Interface Fixes
+- Reworked the meter header as a 60-pixel two-row layout: native action buttons
+  remain on the first row while Fight History and Damage Benchmark use a
+  dedicated utility row below them.
+- Enlarged both utility launchers from 14 to 20 pixels, increased their glyphs
+  to 11 pixels and aligned them with the same column rhythm as the Report and
+  Reset buttons above.
+- Moved the utility launchers onto header-owned anchors, with compatibility
+  fallbacks for older window objects, so their placement remains stable when
+  the meter is resized or the header layout changes.
+- Fixed the Run Compare title and status text overlapping the `PERFORMANCE`
+  badge and identity control. Their available widths now update with the panel,
+  remain single-line and preserve the reserved top-right area.
+
 ## Keystone Synchronization
 - Added the bundled `LibTomoKeystoneSync-1.0` library and loaded it before the
   addon locale and feature modules.
@@ -76,6 +151,9 @@
   encounter completion events report the same fight.
 - Keeps all fight-history collection event-driven and validates secret or
   unavailable values before storing plain data.
+- Fixed the Fight History `UpdateUI` callback being resolved as a global from
+  the boss-entry upgrade path by adding an explicit file-scope forward
+  declaration, restoring the forward-reference CI check.
 - Uses the existing `TOMOKEYS` protocol for interoperability with other Tomo
   addons and delegates transport to TomoMod when its native key sync is
   available, preventing duplicate addon messages.
@@ -94,6 +172,8 @@
   English fallback for unsupported or incomplete locales.
 - The boss-capture reliability fix introduces no new player-facing strings, so
   all nine 2.8.2 locale sets remain complete and unchanged.
+- The meter-header, utility-launcher and Run Compare layout fixes are visual
+  only and require no additional translations.
 
 # 2.8.1 - Reliability, Audit and Release Tooling
 

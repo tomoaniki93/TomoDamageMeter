@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: Portuguese (Brazil)
--- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
+-- Catalog revision: 2.8.3 (compact Combat Summary labels)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "ptBR" then return end
@@ -201,6 +201,8 @@ L["TIP_SESSION"] = "Clique para mudar sessão"
 -- Dicas ao passar o mouse
 L["TIP_TOP_SPELLS"] = "Principais magias"
 L["TIP_TOTAL"] = "Total"
+L["COMBAT_SUMMARY_TITLE"] = "Resumo do combate"
+L["SETTINGS_COMBAT_SUMMARY_OVERLAY"] = "Resumo compacto do combate"
 L["TIP_OVERKILL"] = "Dano excedente"
 L["TIP_AVOIDABLE"] = "Dano evitável"
 L["TIP_KILLING_BLOW"] = "Golpe fatal"

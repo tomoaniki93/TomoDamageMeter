@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: Russian
--- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
+-- Catalog revision: 2.8.3 (compact Combat Summary labels)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "ruRU" then return end
@@ -201,6 +201,8 @@ L["TIP_SESSION"] = "Нажмите, чтобы сменить сессию"
 -- Подсказки при наведении
 L["TIP_TOP_SPELLS"] = "Лучшие способности"
 L["TIP_TOTAL"] = "Всего"
+L["COMBAT_SUMMARY_TITLE"] = "Сводка боя"
+L["SETTINGS_COMBAT_SUMMARY_OVERLAY"] = "Компактная сводка боя"
 L["TIP_OVERKILL"] = "Избыточный урон"
 L["TIP_AVOIDABLE"] = "Избегаемый урон"
 L["TIP_KILLING_BLOW"] = "Смертельный удар"

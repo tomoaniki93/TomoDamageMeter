@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: Italian
--- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
+-- Catalog revision: 2.8.3 (compact Combat Summary labels)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "itIT" then return end
@@ -201,6 +201,8 @@ L["TIP_SESSION"] = "Clicca per cambiare sessione"
 -- Tooltip al passaggio
 L["TIP_TOP_SPELLS"] = "Migliori incantesimi"
 L["TIP_TOTAL"] = "Totale"
+L["COMBAT_SUMMARY_TITLE"] = "Riepilogo del combattimento"
+L["SETTINGS_COMBAT_SUMMARY_OVERLAY"] = "Riepilogo compatto del combattimento"
 L["TIP_OVERKILL"] = "Danno in eccesso"
 L["TIP_AVOIDABLE"] = "Danno evitabile"
 L["TIP_KILLING_BLOW"] = "Colpo mortale"

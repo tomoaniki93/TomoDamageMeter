@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: German
--- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
+-- Catalog revision: 2.8.3 (compact Combat Summary labels)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "deDE" then return end
@@ -201,6 +201,8 @@ L["TIP_SESSION"] = "Klicken zum Sitzungswechsel"
 -- Tooltips (Mauszeiger)
 L["TIP_TOP_SPELLS"] = "Top-Zauber"
 L["TIP_TOTAL"] = "Gesamt"
+L["COMBAT_SUMMARY_TITLE"] = "Kampfzusammenfassung"
+L["SETTINGS_COMBAT_SUMMARY_OVERLAY"] = "Kompakte Kampfzusammenfassung"
 L["TIP_OVERKILL"] = "Overkill"
 L["TIP_AVOIDABLE"] = "Vermeidbarer Schaden"
 L["TIP_KILLING_BLOW"] = "Todesstoß"

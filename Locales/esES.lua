@@ -2,7 +2,7 @@ local ADDON_NAME, ns = ...
 
 ----------------------------------------------------------------------
 -- Localization: Spanish
--- Catalog revision: 2.8.2 (feature strings are maintained in locale extensions)
+-- Catalog revision: 2.8.3 (compact Combat Summary labels)
 ----------------------------------------------------------------------
 
 if GetLocale() ~= "esES" and GetLocale() ~= "esMX" then return end
@@ -201,6 +201,8 @@ L["TIP_SESSION"] = "Clic para cambiar sesión"
 -- Información al pasar el ratón
 L["TIP_TOP_SPELLS"] = "Mejores hechizos"
 L["TIP_TOTAL"] = "Total"
+L["COMBAT_SUMMARY_TITLE"] = "Resumen del combate"
+L["SETTINGS_COMBAT_SUMMARY_OVERLAY"] = "Resumen compacto del combate"
 L["TIP_OVERKILL"] = "Daño excedente"
 L["TIP_AVOIDABLE"] = "Daño evitable"
 L["TIP_KILLING_BLOW"] = "Golpe mortal"

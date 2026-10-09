@@ -637,6 +637,7 @@ function ns.CreateMeterWindow(cfg)
             if self.fill then self.fill:SetAlpha(ns.BAR_ALPHA or 0.5) end
             if self.icon then self.icon:SetAlpha(ns.ICON_ALPHA or 0.7) end
             HideTip()
+            if ns.HideCombatSummaryOverlay then ns.HideCombatSummaryOverlay() end
         end)
 
         button:SetScript("OnClick", function(self, mouseButton)

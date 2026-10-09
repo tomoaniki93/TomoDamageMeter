@@ -15,7 +15,7 @@
 ## SavedVariables: TomoDamageMeterDB
 ## Dependencies: Blizzard_DamageMeter
 ## Author: TomoAniki
-## Version: 2.8.2
+## Version: 2.8.3
 ## IconTexture: Interface\AddOns\TomoDamageMeter\Assets\Textures\TDM_Icon_64.tga
 ## AddonCompartmentFunc: TomoDamageMeter_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: TomoDamageMeter_OnAddonCompartmentEnter
@@ -55,6 +55,7 @@ Core\Database.lua
 Modules\SpellBridge.lua
 Modules\SpellBreakdown.lua
 Modules\SpellDetails.lua
+Modules\CombatSummary.lua
 Modules\TargetBreakdown.lua
 Modules\DeathRecap.lua
 Modules\RunRecap.lua
