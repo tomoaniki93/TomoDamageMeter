@@ -48,7 +48,7 @@ local function EnsureWindow()
     frame:SetBackdropColor(ns.BG[1], ns.BG[2], ns.BG[3], ns.db and ns.db.bgAlpha or ns.BG[4])
     frame:SetBackdropBorderColor(unpack(ns.BORDER_COLOR))
 
-    tinsert(UISpecialFrames, "TomoDMDeathRecap")
+    ns.CloseOnEscape(frame)
 
     -- Header
     local header = CreateFrame("Frame", nil, frame)
@@ -300,22 +300,55 @@ end
 -- Optional auto-popup on the local player's death
 ----------------------------------------------------------------------
 
+-- The recap ID lives in the Deaths meter session, which is only readable from
+-- inside a DAMAGE_METER_* (or regen) handler. The old path read it from a
+-- C_Timer callback: fine when the fight was already over, but a death mid-pull
+-- (the usual case) came back secret and the popup silently never appeared.
+--
+-- PLAYER_DEAD now only arms a short window; the lookup runs synchronously in
+-- the next readable event. The timer read is kept as an out-of-combat fallback.
+local PENDING_WINDOW = 15      -- seconds a death stays eligible for the popup
+local pendingDeathUntil = nil
+local lastShownRecapID = nil
+
+local function TryShowPendingRecap()
+    if not pendingDeathUntil then return end
+    if not (ns.db and ns.db.deathRecapAutoShow) or GetTime() > pendingDeathUntil then
+        pendingDeathUntil = nil
+        return
+    end
+    local rid, name, classFile = ns.FindLocalDeathRecap()
+    -- Overall still holds earlier deaths: never re-open one already shown.
+    if not rid or rid == lastShownRecapID then return end
+
+    pendingDeathUntil = nil
+    lastShownRecapID = rid
+    if not name then
+        name = UnitName("player")
+        local _, cf = UnitClass("player")
+        classFile = classFile or cf
+    end
+    ns.ShowDeathRecap(rid, name, classFile)
+end
+
 local deathFrame = CreateFrame("Frame")
 ns._deathRecapFrame = deathFrame
-deathFrame:RegisterEvent("PLAYER_DEAD")
-deathFrame:SetScript("OnEvent", function()
-    if not (ns.db and ns.db.deathRecapAutoShow) then return end
-    -- Small delay: the Deaths session / recap data lands a beat after PLAYER_DEAD.
-    C_Timer.After(0.5, function()
+ns.SafeRegisterEvent(deathFrame, "PLAYER_DEAD")
+ns.SafeRegisterEvent(deathFrame, "DAMAGE_METER_COMBAT_SESSION_UPDATED")
+ns.SafeRegisterEvent(deathFrame, "DAMAGE_METER_CURRENT_SESSION_UPDATED")
+ns.SafeRegisterEvent(deathFrame, "PLAYER_REGEN_ENABLED")
+deathFrame:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_DEAD" then
         if not (ns.db and ns.db.deathRecapAutoShow) then return end
-        local rid, name, classFile = ns.FindLocalDeathRecap()
-        if rid then
-            if not name then
-                name = UnitName("player")
-                local _, cf = UnitClass("player")
-                classFile = classFile or cf
-            end
-            ns.ShowDeathRecap(rid, name, classFile)
+        pendingDeathUntil = GetTime() + PENDING_WINDOW
+        TryShowPendingRecap()
+        if pendingDeathUntil then
+            -- Out of combat the data may land without a further meter event.
+            C_Timer.After(0.5, TryShowPendingRecap)
         end
-    end)
+        return
+    end
+    -- DAMAGE_METER_* / PLAYER_REGEN_ENABLED: readable context. Cheap no-op
+    -- unless a death is pending.
+    TryShowPendingRecap()
 end)

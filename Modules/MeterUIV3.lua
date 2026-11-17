@@ -452,7 +452,7 @@ function ns.CreateMeterWindow(cfg)
     end
 
     resetBtn:SetScript("OnClick", function()
-        C_DamageMeter.ResetAllCombatSessions()
+        ns.ResetAllSessions()
     end)
     reportBtn:SetScript("OnClick", function()
         local snap = ns.SnapshotReportData(state.meterType, state.sessionType, state.elements)
@@ -933,7 +933,7 @@ function ns.CreateMeterWindow(cfg)
     end
 
     function state.CollectData()
-        local session = C_DamageMeter.GetCombatSessionFromType(state.sessionType, state.meterType)
+        local session = ns.GetSessionFromType(state.sessionType, state.meterType)
         if not session or issecretvalue(session) then return false end
         local sources = session.combatSources
         if not sources or issecretvalue(sources) or #sources == 0 then return false end
@@ -1120,7 +1120,7 @@ function ns.CreateMeterWindow(cfg)
         LayoutHeader()
 
         local seconds
-        local session = C_DamageMeter.GetCombatSessionFromType(state.sessionType, state.meterType)
+        local session = ns.GetSessionFromType(state.sessionType, state.meterType)
         if session and not issecretvalue(session) then
             local d = session.durationSeconds
             if Safe(d) then seconds = d end

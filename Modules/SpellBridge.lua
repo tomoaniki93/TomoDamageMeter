@@ -308,7 +308,7 @@ function ns.FindLocalDeathRecap()
         Enum.DamageMeterSessionType.Overall,
     }
     for _, st in ipairs(sessionTypes) do
-        local session = C_DamageMeter.GetCombatSessionFromType(st, Deaths)
+        local session = ns.GetSessionFromType(st, Deaths)
         if session and not issecretvalue(session) and session.combatSources then
             for _, s in ipairs(session.combatSources) do
                 local isSelf = s.isLocalPlayer

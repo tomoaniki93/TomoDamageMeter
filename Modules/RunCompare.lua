@@ -65,7 +65,7 @@ end
 local function FindHistoryPlayer(entry)
     if type(entry) ~= "table" or type(entry.players) ~= "table" then return nil end
     local guid = UnitGUID("player")
-    if guid and entry.players[guid] then return entry.players[guid] end
+    if guid and not issecretvalue(guid) and entry.players[guid] then return entry.players[guid] end
 
     local name = PlayerName()
     local shortName = name and ns.StripRealm(name) or name

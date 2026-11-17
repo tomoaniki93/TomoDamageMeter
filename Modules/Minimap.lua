@@ -200,7 +200,7 @@ local function OpenQuickMenu(owner)
             end)
 
         root:CreateButton(T("MINIMAP_RESET_DATA", "Reset combat data"), function()
-            C_DamageMeter.ResetAllCombatSessions()
+            ns.ResetAllSessions()
         end)
 
         if ns.ToggleRunRecap then

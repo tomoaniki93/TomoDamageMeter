@@ -123,7 +123,7 @@ end
 local function FindPlayer(entry)
     if type(entry) ~= "table" or type(entry.players) ~= "table" then return nil end
     local guid = UnitGUID("player")
-    if guid and entry.players[guid] then return entry.players[guid] end
+    if guid and not issecretvalue(guid) and entry.players[guid] then return entry.players[guid] end
 
     local name = PlayerName()
     local shortName = name and ns.StripRealm(name) or name
@@ -327,7 +327,7 @@ local function EnsureFrame()
     frame:SetBackdropColor(0.008, 0.008, 0.012, 0.97)
     frame:SetBackdropBorderColor(0.42, 0.035, 0.07, 0.94)
     RestorePosition(frame)
-    tinsert(UISpecialFrames, "TomoDMRunHistory")
+    ns.CloseOnEscape(frame)
 
     local header = CreateFrame("Frame", nil, frame)
     header:SetPoint("TOPLEFT", 1, -1)

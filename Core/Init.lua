@@ -16,6 +16,60 @@ function ns.SafeRegisterEvent(frame, event)
     return ok
 end
 
+-- Protected C_DamageMeter entry points. A raised error inside the refresh path
+-- (expired session, API change, missing function on another client) would
+-- otherwise abort the whole DAMAGE_METER_* handler. pcall does not change the
+-- readability of the returned values: called in-handler, they stay readable.
+function ns.GetSessionFromType(sessionType, meterType)
+    if not (C_DamageMeter and C_DamageMeter.GetCombatSessionFromType) then return nil end
+    local ok, session = pcall(C_DamageMeter.GetCombatSessionFromType, sessionType, meterType)
+    if ok then return session end
+    return nil
+end
+
+function ns.ResetAllSessions()
+    if C_DamageMeter and C_DamageMeter.ResetAllCombatSessions then
+        pcall(C_DamageMeter.ResetAllCombatSessions)
+    end
+end
+
+-- Escape-to-close without UISpecialFrames. Inserting into (or reassigning)
+-- that Blizzard global taints CloseSpecialWindows, which runs on the secure
+-- Escape path and can surface as ADDON_ACTION_BLOCKED in combat.
+--
+-- The frame only takes keyboard input while shown and out of combat:
+-- SetPropagateKeyboardInput is restricted in combat lockdown, so in combat the
+-- frame never touches it and every key (Escape included) passes straight
+-- through to the game. Out of combat, Escape is consumed and hides the frame;
+-- every other key is propagated.
+function ns.CloseOnEscape(frame)
+    if not frame or frame._tdmCloseOnEscape then return end
+    frame._tdmCloseOnEscape = true
+
+    local function Arm(self)
+        if InCombatLockdown() then return end
+        self:EnableKeyboard(true)
+        self:SetPropagateKeyboardInput(true)
+    end
+
+    frame:HookScript("OnShow", Arm)
+    frame:HookScript("OnHide", function(self)
+        if InCombatLockdown() then return end
+        self:EnableKeyboard(false)
+    end)
+    frame:SetScript("OnKeyDown", function(self, key)
+        if InCombatLockdown() then return end
+        if key == "ESCAPE" then
+            self:SetPropagateKeyboardInput(false)
+            self:Hide()
+        else
+            self:SetPropagateKeyboardInput(true)
+        end
+    end)
+
+    if frame:IsShown() then Arm(frame) end
+end
+
 ----------------------------------------------------------------------
 -- Meter Type Metadata
 ----------------------------------------------------------------------

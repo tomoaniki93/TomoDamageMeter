@@ -370,7 +370,7 @@ local function EnsureWindow()
     Backdrop(f, 0.012, 0.012, 0.016, 0.98)
     f:SetBackdropBorderColor(0.72, 0.05, 0.12, 0.92)
     RestorePosition(f)
-    if not tContains(UISpecialFrames, f:GetName()) then tinsert(UISpecialFrames, f:GetName()) end
+    ns.CloseOnEscape(f)
 
     local topGlow = f:CreateTexture(nil, "BORDER")
     topGlow:SetTexture(ns.FLAT)

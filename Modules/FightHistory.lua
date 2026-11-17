@@ -462,8 +462,7 @@ local function EnsureFrame()
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
     frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
     frame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-    UISpecialFrames = UISpecialFrames or {}
-    table.insert(UISpecialFrames, "TomoDMFightHistory")
+    ns.CloseOnEscape(frame)
 
     local r, g, b = Accent()
     local accent = frame:CreateTexture(nil, "OVERLAY")

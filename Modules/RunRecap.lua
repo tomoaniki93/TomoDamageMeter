@@ -357,7 +357,7 @@ local function EnsureWindow()
     frame:SetBackdropColor(ns.BG[1], ns.BG[2], ns.BG[3], ns.db and ns.db.bgAlpha or ns.BG[4])
     frame:SetBackdropBorderColor(unpack(ns.BORDER_COLOR))
 
-    tinsert(UISpecialFrames, "TomoDMRunRecap")
+    ns.CloseOnEscape(frame)
 
     -- Header
     local header = CreateFrame("Frame", nil, frame)

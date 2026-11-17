@@ -1,5 +1,36 @@
 # Changelog
 
+# 2.8.5 - Taint Hardening and Death Recap Fix
+
+## Fixes
+- Death Recap auto-popup now works when the player dies mid-pull. The recap
+  lookup ran from a timer, where the Deaths session is protected while the
+  group is still in combat, so the popup silently never appeared. PLAYER_DEAD
+  now arms a 15-second window and the lookup runs in the next damage-meter or
+  combat-end event, where the data is readable. An already shown recap is
+  never reopened.
+- The Damage Benchmark no longer queries the current session on every
+  damage-meter event while idle; it returns early unless a test is armed or
+  running.
+
+## Taint Hardening
+- Windows no longer register in UISpecialFrames. The Benchmark and Fight
+  History windows also reassigned that Blizzard global, which tainted the
+  secure Escape path. Escape-to-close is now handled by a shared helper that
+  only takes keyboard input while the window is shown and out of combat; in
+  combat every key passes through to the game.
+- Every C_DamageMeter session read and reset now goes through a protected call,
+  so an API error can no longer abort the refresh handler.
+- Added secret-value guards on the source lists of the target and spell
+  breakdown windows.
+- Combat Summary accent lines use a tinted flat texture instead of
+  SetColorTexture (suite standard).
+
+## Compatibility
+- Damage-meter events in the core and the Death Recap are registered through
+  SafeRegisterEvent, so a client missing one of them (WoW: Forever, future
+  builds) only loses that feature instead of aborting the core file.
+
 # 2.8.3 - Compact Combat Summary and Native DPS Benchmark
 
 ## Compact Combat Summary

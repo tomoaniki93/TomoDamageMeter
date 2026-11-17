@@ -549,7 +549,7 @@ function ns.SnapshotReportData(meterType, sessionType, elements)
     -- Fallback: live query. Fine out of combat, and covers the case where the
     -- window has not collected anything yet.
     if #lines == 0 then
-        local session = C_DamageMeter.GetCombatSessionFromType(sessionType, meterType)
+        local session = ns.GetSessionFromType(sessionType, meterType)
         if not session or issecretvalue(session) then return nil end
         local sources = session.combatSources
         if not sources or #sources == 0 then return nil end

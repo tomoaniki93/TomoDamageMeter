@@ -318,9 +318,7 @@ local function CreateSettingsPanelV2()
         ns.DecorateTDMFrame(frame, "settings")
     end
 
-    if not tContains(UISpecialFrames, frame:GetName()) then
-        table.insert(UISpecialFrames, frame:GetName())
-    end
+    ns.CloseOnEscape(frame)
 
     ------------------------------------------------------------------
     -- Header
@@ -482,7 +480,7 @@ local function CreateSettingsPanelV2()
     lockAllBtn:SetPoint("LEFT", visibilityBtn, "RIGHT", 10, 0)
 
     local resetBtn = MakeButton(quick, T("RESET", "Reset"), 128, 32, function()
-        C_DamageMeter.ResetAllCombatSessions()
+        ns.ResetAllSessions()
     end, true)
     resetBtn:SetPoint("LEFT", lockAllBtn, "RIGHT", 10, 0)
 

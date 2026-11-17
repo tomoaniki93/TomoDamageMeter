@@ -84,7 +84,7 @@ local function EnsureWindow()
     frame:SetBackdropColor(ns.BG[1], ns.BG[2], ns.BG[3], ns.db and ns.db.bgAlpha or ns.BG[4])
     frame:SetBackdropBorderColor(ns.BORDER_COLOR[1], ns.BORDER_COLOR[2], ns.BORDER_COLOR[3], ns.BORDER_COLOR[4])
 
-    tinsert(UISpecialFrames, "TomoDMTargetBreakdown")
+    ns.CloseOnEscape(frame)
 
     --------------------------------------------------------------------------
     -- Header
@@ -546,7 +546,7 @@ local function PopulateEnemies(frame, sessionID)
     end
 
     local sources = session.combatSources
-    if not sources or #sources == 0 then
+    if not sources or issecretvalue(sources) or #sources == 0 then
         frame._noDataFS:Show()
         return
     end
